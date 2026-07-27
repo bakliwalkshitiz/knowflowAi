@@ -10,6 +10,8 @@ public class PromptTemplateFactory {
 
         return switch (type) {
 
+            case CHAT -> message;
+
             case EXPLAIN -> """
                     Explain the following topic in simple language.
 

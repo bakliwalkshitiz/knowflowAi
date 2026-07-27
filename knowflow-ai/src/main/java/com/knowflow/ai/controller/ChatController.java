@@ -21,6 +21,7 @@ public class ChatController {
 
         return chatService.chat(
                 request.getType(),
+                request.getConversationId(),
                 request.getMessage()
         );
 
