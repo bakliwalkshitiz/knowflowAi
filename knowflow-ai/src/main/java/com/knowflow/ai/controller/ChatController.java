@@ -19,7 +19,10 @@ public class ChatController {
     @PostMapping
     public ChatResponse chat(@Valid @RequestBody ChatRequest request) {
 
-        return chatService.chat(request.getMessage());
+        return chatService.chat(
+                request.getType(),
+                request.getMessage()
+        );
 
     }
 

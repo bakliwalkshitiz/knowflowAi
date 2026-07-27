@@ -19,11 +19,11 @@ public class ChatService {
         this.promptTemplateFactory = promptTemplateFactory;
     }
 
-    public ChatResponse chat(String message) {
+    public ChatResponse chat(PromptType type, String message) {
 
         String prompt =
                 promptTemplateFactory.buildPrompt(
-                        PromptType.EXPLAIN,
+                        type,
                         message
                 );
 
