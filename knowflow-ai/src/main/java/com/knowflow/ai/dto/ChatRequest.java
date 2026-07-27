@@ -12,6 +12,9 @@ public class ChatRequest {
     private PromptType type;
 
     @NotBlank
+    private String conversationId;
+
+    @NotBlank
     private String message;
 
 }
