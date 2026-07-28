@@ -3,10 +3,10 @@ spring:
     name: KnowFlowAI
 
   datasource:
-    url: jdbc:mysql://localhost:3306/knowflow_ai
-    username: root
-    password: Bakliwal@mysql
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:postgresql://localhost:5432/knowflow_ai
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
@@ -25,9 +25,18 @@ spring:
   ai:
     openai:
       api-key: ${OPENAI_API_KEY}
+
       chat:
         options:
           model: gpt-4.1-mini
+
+      embedding:
+        options:
+          model: text-embedding-3-small
+
+    vectorstore:
+      pgvector:
+        initialize-schema: true
 
 springdoc:
   swagger-ui:

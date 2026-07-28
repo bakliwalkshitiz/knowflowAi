@@ -8,6 +8,9 @@ import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import org.springframework.ai.vectorstore.VectorStore;
+import com.knowflow.ai.embedding.EmbeddingService;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,11 +25,18 @@ public class DocumentService {
 
     private final DocumentParser documentParser;
     private final DocumentChunker documentChunker;
+    private final EmbeddingService embeddingService;
+    private final VectorStore vectorStore;
 
     public DocumentService(DocumentParser documentParser,
-                           DocumentChunker documentChunker) {
+                           DocumentChunker documentChunker,
+                           EmbeddingService embeddingService,
+                           VectorStore vectorStore) {
+
         this.documentParser = documentParser;
         this.documentChunker = documentChunker;
+        this.embeddingService = embeddingService;
+        this.vectorStore = vectorStore;
     }
 
     public UploadResponse upload(MultipartFile file)
@@ -51,6 +61,12 @@ public class DocumentService {
 
         // Split into chunks
         List<Document> chunks = documentChunker.chunk(extractedText);
+
+        embeddingService.generateEmbeddings(chunks);
+
+        vectorStore.add(chunks);
+
+        System.out.println("Embeddings stored successfully in PGVector.");
 
         System.out.println("Total Chunks : " + chunks.size());
 
