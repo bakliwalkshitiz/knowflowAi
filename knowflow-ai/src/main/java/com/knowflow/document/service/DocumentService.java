@@ -1,25 +1,32 @@
 package com.knowflow.document.service;
 
+import com.knowflow.document.chunk.DocumentChunker;
 import com.knowflow.document.dto.UploadResponse;
 import com.knowflow.document.parser.DocumentParser;
+import org.apache.tika.exception.TikaException;
+import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import org.apache.tika.exception.TikaException;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 
 @Service
 public class DocumentService {
 
     private static final String UPLOAD_DIR = "uploads";
-    private final DocumentParser documentParser;
 
-    public DocumentService(DocumentParser documentParser) {
+    private final DocumentParser documentParser;
+    private final DocumentChunker documentChunker;
+
+    public DocumentService(DocumentParser documentParser,
+                           DocumentChunker documentChunker) {
         this.documentParser = documentParser;
+        this.documentChunker = documentChunker;
     }
 
     public UploadResponse upload(MultipartFile file)
@@ -39,9 +46,19 @@ public class DocumentService {
                 StandardCopyOption.REPLACE_EXISTING
         );
 
+        // Extract text from document
         String extractedText = documentParser.extractText(filePath.toFile());
 
-        System.out.println(extractedText);
+        // Split into chunks
+        List<Document> chunks = documentChunker.chunk(extractedText);
+
+        System.out.println("Total Chunks : " + chunks.size());
+
+        for (int i = 0; i < chunks.size(); i++) {
+            System.out.println("========== Chunk " + (i + 1) + " ==========");
+            System.out.println(chunks.get(i).getText());
+            System.out.println();
+        }
 
         return new UploadResponse(
                 file.getOriginalFilename(),
