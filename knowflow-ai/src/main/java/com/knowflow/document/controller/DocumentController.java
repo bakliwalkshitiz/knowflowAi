@@ -2,6 +2,7 @@ package com.knowflow.document.controller;
 
 import com.knowflow.document.dto.UploadResponse;
 import com.knowflow.document.service.DocumentService;
+import org.apache.tika.exception.TikaException;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,7 +25,7 @@ public class DocumentController {
     )
     public UploadResponse upload(
             @RequestPart MultipartFile file
-    ) throws IOException {
+    ) throws IOException, TikaException {
 
         return documentService.upload(file);
     }
