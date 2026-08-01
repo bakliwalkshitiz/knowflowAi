@@ -213,12 +213,15 @@ public class ChatService {
     }
 
     public List<ChatHistoryResponse> getChatHistory(String conversationId) {
-
         User currentUser = securityUtils.getCurrentUser();
+        List<ChatHistory> records = chatHistoryRepository
+                .findByUserAndConversationIdOrderByCreatedAtAsc(currentUser, conversationId);
 
-        return chatHistoryRepository
-                .findByUserAndConversationIdOrderByCreatedAtAsc(currentUser, conversationId)
-                .stream()
+        if (records == null || records.isEmpty()) {
+            return List.of();
+        }
+
+        return records.stream()
                 .map(h -> new ChatHistoryResponse(
                         h.getConversationId(),
                         h.getPrompt(),
@@ -229,12 +232,14 @@ public class ChatService {
     }
 
     public List<ChatHistoryResponse> getAllHistory() {
-
         User currentUser = securityUtils.getCurrentUser();
+        List<ChatHistory> records = chatHistoryRepository.findByUserOrderByCreatedAtDesc(currentUser);
 
-        return chatHistoryRepository
-                .findByUserOrderByCreatedAtDesc(currentUser)
-                .stream()
+        if (records == null || records.isEmpty()) {
+            return List.of();
+        }
+
+        return records.stream()
                 .map(h -> new ChatHistoryResponse(
                         h.getConversationId(),
                         h.getPrompt(),

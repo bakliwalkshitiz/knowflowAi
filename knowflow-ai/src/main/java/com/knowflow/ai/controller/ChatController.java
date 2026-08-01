@@ -6,14 +6,17 @@ import com.knowflow.ai.dto.ChatResponse;
 import com.knowflow.ai.dto.ExplainResponse;
 import com.knowflow.ai.service.ChatService;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @RestController
-@RequestMapping("/api/v1/chat")
+@RequestMapping({"/api/v1/chat", "/chat"})
 public class ChatController {
 
     private final ChatService chatService;
@@ -24,7 +27,6 @@ public class ChatController {
 
     @PostMapping
     public ChatResponse chat(@Valid @RequestBody ChatRequest request) {
-
         return chatService.chat(
                 request.getType(),
                 request.getConversationId(),
@@ -37,7 +39,6 @@ public class ChatController {
     public Flux<String> stream(
             @RequestParam String conversationId,
             @RequestParam String message) {
-
         return chatService.stream(conversationId, message);
     }
 
@@ -51,11 +52,15 @@ public class ChatController {
 
     @GetMapping("/history")
     public List<ChatHistoryResponse> getAllHistory() {
-        return chatService.getAllHistory();
+        log.info("Fetching all chat history for authenticated user...");
+        List<ChatHistoryResponse> history = chatService.getAllHistory();
+        return history != null ? history : new ArrayList<>();
     }
 
     @GetMapping("/history/{conversationId}")
     public List<ChatHistoryResponse> getChatHistory(@PathVariable String conversationId) {
-        return chatService.getChatHistory(conversationId);
+        log.info("Fetching chat history for conversation: {}", conversationId);
+        List<ChatHistoryResponse> history = chatService.getChatHistory(conversationId);
+        return history != null ? history : new ArrayList<>();
     }
 }
