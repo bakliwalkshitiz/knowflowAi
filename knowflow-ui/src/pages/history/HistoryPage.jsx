@@ -18,7 +18,8 @@ export default function HistoryPage() {
   useEffect(() => {
     chatApi.history()
       .then(res => {
-        setBackendHistory(res.data || [])
+        const data = res?.data
+        setBackendHistory(Array.isArray(data) ? data : [])
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -27,25 +28,32 @@ export default function HistoryPage() {
   // Read local chat sessions
   const localSessions = (() => {
     try {
-      return JSON.parse(localStorage.getItem('kf_sessions') || '[]')
+      const stored = localStorage.getItem('kf_sessions')
+      const parsed = stored ? JSON.parse(stored) : []
+      return Array.isArray(parsed) ? parsed : []
     } catch { return [] }
   })()
+
+  const safeBackendHistory = Array.isArray(backendHistory) ? backendHistory : []
 
   // Build sessions map
   const sessionMap = new Map()
 
   // 1. Populate from localSessions
   localSessions.forEach(s => {
-    sessionMap.set(s.id, {
-      id: s.id,
-      title: s.name || 'Chat Session',
-      messages: s.messages || [],
-      lastAt: s.createdAt || new Date().toISOString(),
-    })
+    if (s && s.id) {
+      sessionMap.set(s.id, {
+        id: s.id,
+        title: s.name || 'Chat Session',
+        messages: Array.isArray(s.messages) ? s.messages : [],
+        lastAt: s.createdAt || new Date().toISOString(),
+      })
+    }
   })
 
   // 2. Merge backend history items into matching sessions
-  backendHistory.forEach(item => {
+  safeBackendHistory.forEach(item => {
+    if (!item) return
     const convId = item.conversationId
     if (convId && sessionMap.has(convId)) {
       const sess = sessionMap.get(convId)
@@ -60,8 +68,9 @@ export default function HistoryPage() {
   })
 
   // 3. Fallback: if localSessions is empty, group backend history by conversationId
-  if (localSessions.length === 0 && backendHistory.length > 0) {
-    backendHistory.forEach(item => {
+  if (localSessions.length === 0 && safeBackendHistory.length > 0) {
+    safeBackendHistory.forEach(item => {
+      if (!item) return
       const convId = item.conversationId || 'default'
       if (!sessionMap.has(convId)) {
         sessionMap.set(convId, {
@@ -92,7 +101,7 @@ export default function HistoryPage() {
     const q = searchSession.toLowerCase()
     return (
       s.title.toLowerCase().includes(q) ||
-      s.messages.some(m => m.content?.toLowerCase().includes(q))
+      (Array.isArray(s.messages) && s.messages.some(m => m.content?.toLowerCase().includes(q)))
     )
   })
 
@@ -101,24 +110,25 @@ export default function HistoryPage() {
 
   // Pair messages into prompt-response pairs
   const getExchangePairs = (messages = []) => {
+    const safeMsgs = Array.isArray(messages) ? messages : []
     const pairs = []
-    for (let i = 0; i < messages.length; i++) {
-      if (messages[i].role === 'user') {
-        const promptMsg = messages[i]
-        const aiMsg = messages[i + 1]?.role === 'ai' ? messages[i + 1] : null
+    for (let i = 0; i < safeMsgs.length; i++) {
+      if (safeMsgs[i].role === 'user') {
+        const promptMsg = safeMsgs[i]
+        const aiMsg = safeMsgs[i + 1]?.role === 'ai' ? safeMsgs[i + 1] : null
         pairs.push({
           id: i,
-          prompt: promptMsg.content,
+          prompt: promptMsg.content || '',
           response: aiMsg ? aiMsg.content : '',
           time: promptMsg.time || aiMsg?.time || '',
         })
         if (aiMsg) i++
-      } else if (messages[i].role === 'ai' && (i === 0 || messages[i - 1].role !== 'user')) {
+      } else if (safeMsgs[i].role === 'ai' && (i === 0 || safeMsgs[i - 1].role !== 'user')) {
         pairs.push({
           id: i,
           prompt: 'AI Response',
-          response: messages[i].content,
-          time: messages[i].time || '',
+          response: safeMsgs[i].content || '',
+          time: safeMsgs[i].time || '',
         })
       }
     }
@@ -222,7 +232,7 @@ export default function HistoryPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {filteredSessions.map((session, i) => {
                 const pairs = getExchangePairs(session.messages)
-                const lastMsgSnippet = pairs[pairs.length - 1]?.prompt || session.messages[session.messages.length - 1]?.content || 'Empty chat session'
+                const lastMsgSnippet = pairs[pairs.length - 1]?.prompt || session.messages?.[session.messages.length - 1]?.content || 'Empty chat session'
                 return (
                   <motion.div
                     key={session.id}
@@ -265,7 +275,7 @@ export default function HistoryPage() {
                           fontSize: 10, fontWeight: 600, color: 'var(--accent)',
                           background: 'var(--accent-bg)', padding: '2px 8px', borderRadius: 6,
                         }}>
-                          {pairs.length || session.messages.length} conversation{pairs.length !== 1 ? 's' : ''}
+                          {pairs.length || session.messages?.length || 0} conversation{pairs.length !== 1 ? 's' : ''}
                         </span>
                       </div>
                     </div>
