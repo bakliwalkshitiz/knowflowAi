@@ -26,12 +26,16 @@ public class ChatController {
     }
 
     @PostMapping
-    public ChatResponse chat(@Valid @RequestBody ChatRequest request) {
+    public ChatResponse chat(
+            @Valid @RequestBody ChatRequest request,
+            @RequestHeader(value = "X-OpenAI-Api-Key", required = false) String customApiKey
+    ) {
         return chatService.chat(
                 request.getType(),
                 request.getConversationId(),
                 request.getMessage(),
-                request.getDocumentIds()
+                request.getDocumentIds(),
+                customApiKey
         );
     }
 

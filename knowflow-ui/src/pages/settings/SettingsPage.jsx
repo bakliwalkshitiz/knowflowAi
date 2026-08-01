@@ -49,7 +49,7 @@ function ApiKeySection() {
   const [testing, setTesting] = useState(false)
   const [status, setStatus] = useState(null) // { ok: bool, msg: string }
 
-  const masked = (k) => k ? `${k.slice(0, 7)}${'•'.repeat(Math.max(0, k.length - 11))}${k.slice(-4)}` : ''
+  const masked = (k) => k ? `${k.slice(0, 7)}••••••••••••${k.slice(-4)}` : ''
 
   useEffect(() => {
     userApi.getApiKey().then(res => {
@@ -116,12 +116,12 @@ function ApiKeySection() {
 
       {/* Key display */}
       {key && !editing && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, marginBottom: 12, overflow: 'hidden' }}>
           <Key size={14} style={{ color: 'var(--muted)', flexShrink: 0 }} />
-          <code style={{ flex: 1, fontSize: 13, color: 'var(--text)', fontFamily: 'monospace' }}>
+          <code style={{ flex: 1, fontSize: 13, color: 'var(--text)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {show ? key : masked(key)}
           </code>
-          <button onClick={() => setShow(s => !s)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 0, display: 'flex' }}>
+          <button onClick={() => setShow(s => !s)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 0, display: 'flex', flexShrink: 0 }}>
             {show ? <EyeOff size={14} /> : <Eye size={14} />}
           </button>
         </div>

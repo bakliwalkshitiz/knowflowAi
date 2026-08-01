@@ -79,10 +79,21 @@ public class ChatService {
     public ChatResponse chat(PromptType type,
                              String conversationId,
                              String message,
-                             List<String> documentIds) {
+                             List<String> documentIds,
+                             String customApiKey) {
 
         User currentUser = securityUtils.getCurrentUser();
         String userIdStr = currentUser.getId().toString();
+
+        // Resolve custom API Key from header or user entity profile
+        String apiKeyToUse = (customApiKey != null && !customApiKey.isBlank())
+                ? customApiKey.trim()
+                : (currentUser.getApiKey() != null ? currentUser.getApiKey().trim() : null);
+
+        if (apiKeyToUse != null && !apiKeyToUse.isBlank()) {
+            System.setProperty("spring.ai.openai.api-key", apiKeyToUse);
+            log.info("Configured dynamic spring.ai.openai.api-key for user {}", currentUser.getEmail());
+        }
 
         String basePrompt = promptTemplateFactory.buildPrompt(type, message);
         String finalPrompt = basePrompt;

@@ -7,6 +7,8 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('kf_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  const apiKey = localStorage.getItem('kf_api_key')
+  if (apiKey) config.headers['X-OpenAI-Api-Key'] = apiKey
   return config
 })
 
