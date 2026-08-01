@@ -7,6 +7,10 @@ public enum PromptType {
     SUMMARY,
     NOTES,
     QUIZ,
-    TRANSLATE
+    TRANSLATE,
+    FLASHCARD,
+    INTERVIEW,
+    MINDMAP,
+    SYSTEM_DESIGN
 
 }
