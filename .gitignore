@@ -1,0 +1,32 @@
+# Root Workspace .gitignore
+
+# Environment files
+.env
+.env.local
+*.env
+
+# IDE / Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build & Output
+target/
+dist/
+build/
+node_modules/
+
+# Uploads & User generated content
+uploads/
+*.pdf
+*.docx
+*.txt
+
+# Logs
+*.log
+logs/
+
+# OS Files
+.DS_Store
+Thumbs.db
