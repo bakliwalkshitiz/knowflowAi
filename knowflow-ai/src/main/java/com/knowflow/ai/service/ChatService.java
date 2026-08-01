@@ -85,15 +85,9 @@ public class ChatService {
         User currentUser = securityUtils.getCurrentUser();
         String userIdStr = currentUser.getId().toString();
 
-        // Resolve custom API Key from header or user entity profile
-        String apiKeyToUse = (customApiKey != null && !customApiKey.isBlank())
-                ? customApiKey.trim()
-                : (currentUser.getApiKey() != null ? currentUser.getApiKey().trim() : null);
-
-        if (apiKeyToUse != null && !apiKeyToUse.isBlank()) {
-            System.setProperty("spring.ai.openai.api-key", apiKeyToUse);
-            log.info("Configured dynamic spring.ai.openai.api-key for user {}", currentUser.getEmail());
-        }
+        log.info("Chat request from user={} type={} conversationId={} messageLength={} documentIds={}",
+                currentUser.getEmail(), type, conversationId,
+                message != null ? message.length() : 0, documentIds);
 
         String basePrompt = promptTemplateFactory.buildPrompt(type, message);
         String finalPrompt = basePrompt;
@@ -149,42 +143,51 @@ public class ChatService {
             log.warn("Vector similarity search warning for query '{}': {}", message, e.getMessage());
         }
 
-        String response = chatClient
-                .prompt()
-                .system("""
-                        You are KnowFlow AI, an intelligent AI knowledge vault assistant for students, developers, and engineers.
+        try {
+            String response = chatClient
+                    .prompt()
+                    .system("""
+                            You are KnowFlow AI, an intelligent AI knowledge vault assistant for students, developers, and engineers.
 
-                        RESPONSE FORMATTING RULES:
-                        1. RESPOND IN WELL-STRUCTURED MARKDOWN:
-                           - Use bold headers (##, ###) for key sections.
-                           - Use clean bullet points or numbered lists.
-                           - Do NOT output LaTeX math delimiters like \\( \\) or \\[ \\]. Write math equations using clean standard characters (e.g. 22 / 33 = 0.6667 or 2/3).
-                           - Use code blocks ``` for any code or structured data.
+                            RESPONSE FORMATTING RULES:
+                            1. RESPOND IN WELL-STRUCTURED MARKDOWN:
+                               - Use bold headers (##, ###) for key sections.
+                               - Use clean bullet points or numbered lists.
+                               - Do NOT output LaTeX math delimiters like \\( \\) or \\[ \\]. Write math equations using clean standard characters (e.g. 22 / 33 = 0.6667 or 2/3).
+                               - Use code blocks ``` for any code or structured data.
 
-                        2. SPECIALIZED AI TOOLS INTEGRATION:
-                           - You have 7 active AI tools registered: CalculatorTool, DateTimeTool, UUIDTool, CodeFormatterTool, TextAnalyzerTool, UnitConverterTool, WeatherMockTool.
-                           - Whenever a user asks for calculations, date/time, UUID generation, code metrics, text analysis, unit conversions, or weather, ALWAYS invoke the matching tool function.
-                           - If asked whether tools are enabled, confirm clearly: "Yes! 7 specialized AI tools are enabled."
+                            2. SPECIALIZED AI TOOLS INTEGRATION:
+                               - You have 7 active AI tools registered: CalculatorTool, DateTimeTool, UUIDTool, CodeFormatterTool, TextAnalyzerTool, UnitConverterTool, WeatherMockTool.
+                               - Whenever a user asks for calculations, date/time, UUID generation, code metrics, text analysis, unit conversions, or weather, ALWAYS invoke the matching tool function.
+                               - If asked whether tools are enabled, confirm clearly: "Yes! 7 specialized AI tools are enabled."
 
-                        3. DOCUMENT SCOPE:
-                           - If 'STRICT DOCUMENT CONTEXT FROM ATTACHED FILES' is provided, base document answers strictly on that content.
-                        """)
-                .user(finalPrompt)
-                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                .call()
-                .content();
+                            3. DOCUMENT SCOPE:
+                               - If 'STRICT DOCUMENT CONTEXT FROM ATTACHED FILES' is provided, base document answers strictly on that content.
+                            """)
+                    .user(finalPrompt)
+                    .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
+                    .call()
+                    .content();
 
-        // Persist chat exchange for the authenticated user
-        chatHistoryRepository.save(
-                ChatHistory.builder()
-                        .user(currentUser)
-                        .conversationId(conversationId)
-                        .prompt(message)
-                        .response(response)
-                        .build()
-        );
+            log.info("Chat response generated successfully for user={} conversationId={} responseLength={}",
+                    currentUser.getEmail(), conversationId, response != null ? response.length() : 0);
 
-        return new ChatResponse(response);
+            // Persist chat exchange for the authenticated user
+            chatHistoryRepository.save(
+                    ChatHistory.builder()
+                            .user(currentUser)
+                            .conversationId(conversationId)
+                            .prompt(message)
+                            .response(response)
+                            .build()
+            );
+
+            return new ChatResponse(response);
+        } catch (Exception ex) {
+            log.error("OpenAI ChatClient call FAILED for user={} conversationId={}: {}",
+                    currentUser.getEmail(), conversationId, ex.getMessage(), ex);
+            return new ChatResponse("⚠️ AI service error: " + ex.getMessage());
+        }
     }
 
     public Flux<String> stream(String conversationId, String message) {

@@ -523,10 +523,11 @@ export default function ChatPage() {
       setSessions(finalSessions)
       saveSessions(finalSessions)
     } catch (err) {
-      console.error(err)
+      console.error('Chat API error:', err?.response?.data || err?.message || err)
+      const backendMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Unknown error'
       const errorMsg = {
         role: 'assistant',
-        content: '⚠️ Failed to fetch response. Please try again.',
+        content: `⚠️ Failed to fetch response: ${backendMsg}`,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }
       const finalSessions = sessions.map(s =>
