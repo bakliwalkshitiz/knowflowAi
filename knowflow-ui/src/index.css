@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* ── Pure Dark Grey Color Tokens (Linear / Vercel Aesthetic) ── */
+:root {
+  --bg:         #121212;
+  --surface:    #181818;
+  --card:       #222222;
+  --card-hover: #2a2a2a;
+  --border:     #333333;
+  --border-sub: #262626;
+  --text:       #f5f5f5;
+  --muted:      #a3a3a3;
+  --subtle:     #666666;
+  --accent:     #60a5fa;
+  --accent-h:   #3b82f6;
+  --accent-bg:  rgba(96, 165, 250, 0.12);
+  --accent-bd:  rgba(96, 165, 250, 0.28);
+  --success:    #34d399;
+  --danger:     #f87171;
+}
+
+/* ── Soft Warm Ivory Light Theme (#FFFFED) ── */
+[data-theme="light"] {
+  --bg:         #FFFFED;
+  --surface:    #FFFDF5;
+  --card:       #FFFFFF;
+  --card-hover: #F8F8E5;
+  --border:     #E5E5D0;
+  --border-sub: #EFEFDB;
+  --text:       #1A1A14;
+  --muted:      #666655;
+  --subtle:     #999988;
+  --accent:     #3b82f6;
+  --accent-h:   #2563eb;
+  --accent-bg:  rgba(59, 130, 246, 0.08);
+  --accent-bd:  rgba(59, 130, 246, 0.2);
+}
+
+/* ── Base ── */
+* { box-sizing: border-box; }
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  margin: 0; padding: 0;
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* ── Selection ── */
+::selection { background: rgba(96, 165, 250, 0.25); }
