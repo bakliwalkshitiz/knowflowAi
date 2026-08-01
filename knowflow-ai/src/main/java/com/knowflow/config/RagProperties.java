@@ -1,0 +1,12 @@
+package com.knowflow.config;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+@ConfigurationProperties(prefix = "rag.retrieval")
+public record RagProperties(
+
+        int topK,
+        double similarityThreshold
+
+) {
+}
