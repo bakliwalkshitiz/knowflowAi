@@ -110,17 +110,29 @@ public class ChatService {
      * Resolve which ChatClient to use: user's BYOK key or default.
      */
     private ChatClient resolveClient(String customApiKey, User user) {
-        // Priority 1: Header key
-        if (customApiKey != null && !customApiKey.isBlank()) {
-            return getOrCreateByokClient(customApiKey.trim());
+        String keyToUse = null;
+
+        // Priority 1: Header key sent from browser
+        if (customApiKey != null && !customApiKey.isBlank() && !customApiKey.contains("sk-dummy")) {
+            keyToUse = customApiKey.trim();
+            log.info("Using OpenAI API key from request header for user {}", user.getEmail());
         }
         // Priority 2: User's saved key in database
-        String savedKey = user.getApiKey();
-        if (savedKey != null && !savedKey.isBlank()) {
-            return getOrCreateByokClient(savedKey.trim());
+        else if (user.getApiKey() != null && !user.getApiKey().isBlank() && !user.getApiKey().contains("sk-dummy")) {
+            keyToUse = user.getApiKey().trim();
+            log.info("Using OpenAI API key from database profile for user {}", user.getEmail());
         }
-        // Fallback: default (server) chatClient
-        return chatClient;
+
+        if (keyToUse != null && !keyToUse.isBlank()) {
+            return getOrCreateByokClient(keyToUse);
+        }
+
+        log.warn("No valid OpenAI API key found for user {}. Header key={}, DB key={}",
+                user.getEmail(),
+                customApiKey != null ? "PRESENT" : "MISSING",
+                user.getApiKey() != null && !user.getApiKey().isBlank() ? "PRESENT" : "MISSING");
+
+        throw new IllegalArgumentException("No OpenAI API key connected. Please go to Settings and save your OpenAI API key (sk-...).");
     }
 
     public ChatResponse chat(PromptType type,

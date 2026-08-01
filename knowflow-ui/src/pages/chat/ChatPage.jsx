@@ -365,6 +365,11 @@ export default function ChatPage() {
   const activeSession = sessions.find(s => s.id === activeId) || sessions[0]
 
   useEffect(() => {
+    userApi.getApiKey().then(res => {
+      if (res?.data?.apiKey) {
+        localStorage.setItem('kf_api_key', res.data.apiKey)
+      }
+    }).catch(() => {})
     documentApi.getAll().then(res => {
       const list = (res?.data || []).map(normalizeDoc).filter(Boolean)
       setDocuments(list)
