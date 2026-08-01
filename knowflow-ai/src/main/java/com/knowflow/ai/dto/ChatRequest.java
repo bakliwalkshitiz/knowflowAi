@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class ChatRequest {
 
@@ -17,4 +19,5 @@ public class ChatRequest {
     @NotBlank
     private String message;
 
+    private List<String> documentIds;
 }
