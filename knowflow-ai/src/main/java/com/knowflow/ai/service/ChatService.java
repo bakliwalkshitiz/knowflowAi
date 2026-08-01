@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
@@ -24,6 +25,7 @@ import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,6 +39,12 @@ public class ChatService {
     private final SecurityUtils securityUtils;
     private final VectorStore vectorStore;
     private final DocumentService documentService;
+
+    // BYOK: Cache ChatClient instances per API key to avoid recreating on every request
+    private final ConcurrentHashMap<String, ChatClient> byokClientCache = new ConcurrentHashMap<>();
+
+    // Store tool beans for dynamic ChatClient creation
+    private final Object[] toolBeans;
 
     public ChatService(ChatClient.Builder builder,
                        PromptTemplateFactory promptTemplateFactory,
@@ -60,20 +68,59 @@ public class ChatService {
         this.vectorStore = vectorStore;
         this.documentService = documentService;
 
+        this.toolBeans = new Object[]{
+                calculatorTool, dateTimeTool, uuidTool,
+                codeFormatterTool, textAnalyzerTool, unitConverterTool, weatherMockTool
+        };
+
         this.chatClient = builder
                 .defaultAdvisors(
                         MessageChatMemoryAdvisor.builder(chatMemory).build()
                 )
-                .defaultTools(
-                        calculatorTool,
-                        dateTimeTool,
-                        uuidTool,
-                        codeFormatterTool,
-                        textAnalyzerTool,
-                        unitConverterTool,
-                        weatherMockTool
-                )
+                .defaultTools(toolBeans)
                 .build();
+    }
+
+    /**
+     * BYOK: Build a ChatClient dynamically using the user's own OpenAI API key.
+     */
+    private ChatClient getOrCreateByokClient(String apiKey) {
+        return byokClientCache.computeIfAbsent(apiKey, key -> {
+            log.info("Creating dynamic BYOK ChatClient for user key hash={}", key.hashCode());
+            try {
+                com.openai.core.ClientOptions clientOptions = com.openai.core.ClientOptions.builder()
+                        .apiKey(key)
+                        .build();
+                com.openai.client.OpenAIClient openAiClient = new com.openai.client.OpenAIClientImpl(clientOptions);
+                OpenAiChatModel dynamicModel = OpenAiChatModel.builder()
+                        .openAiClient(openAiClient)
+                        .build();
+                return ChatClient.builder(dynamicModel)
+                        .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                        .defaultTools(toolBeans)
+                        .build();
+            } catch (Exception ex) {
+                log.error("Failed to construct dynamic BYOK ChatClient: {}", ex.getMessage(), ex);
+                return chatClient;
+            }
+        });
+    }
+
+    /**
+     * Resolve which ChatClient to use: user's BYOK key or default.
+     */
+    private ChatClient resolveClient(String customApiKey, User user) {
+        // Priority 1: Header key
+        if (customApiKey != null && !customApiKey.isBlank()) {
+            return getOrCreateByokClient(customApiKey.trim());
+        }
+        // Priority 2: User's saved key in database
+        String savedKey = user.getApiKey();
+        if (savedKey != null && !savedKey.isBlank()) {
+            return getOrCreateByokClient(savedKey.trim());
+        }
+        // Fallback: default (server) chatClient
+        return chatClient;
     }
 
     public ChatResponse chat(PromptType type,
@@ -144,7 +191,8 @@ public class ChatService {
         }
 
         try {
-            String response = chatClient
+            ChatClient targetClient = resolveClient(customApiKey, currentUser);
+            String response = targetClient
                     .prompt()
                     .system("""
                             You are KnowFlow AI, an intelligent AI knowledge vault assistant for students, developers, and engineers.

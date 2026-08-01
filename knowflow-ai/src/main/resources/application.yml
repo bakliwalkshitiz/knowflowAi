@@ -24,7 +24,7 @@ spring:
 
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY:}
+      api-key: ${OPENAI_API_KEY:sk-dummy-byok-startup-placeholder}
 
       chat:
         options:
