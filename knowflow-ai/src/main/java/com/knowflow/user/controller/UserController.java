@@ -24,9 +24,10 @@ public class UserController {
         log.info("Fetching API key for current user...");
         User user = securityUtils.getCurrentUser();
         String key = user.getApiKey();
-        boolean isConfigured = key != null && !key.isBlank();
+        boolean isConfigured = key != null && !key.isBlank() && !key.contains("sk-dummy");
+        String returnKey = isConfigured ? key : "";
         log.info("API key status for user {}: configured={}", user.getEmail(), isConfigured);
-        return ResponseEntity.ok(new ApiKeyResponse(key != null ? key : "", isConfigured));
+        return ResponseEntity.ok(new ApiKeyResponse(returnKey, isConfigured));
     }
 
     @PostMapping("/api-key")
@@ -36,6 +37,7 @@ public class UserController {
         user.setApiKey(newKey);
         userRepository.save(user);
         log.info("Updated API key for user {}", user.getEmail());
-        return ResponseEntity.ok(new ApiKeyResponse(newKey, !newKey.isBlank()));
+        boolean isConfigured = !newKey.isBlank() && !newKey.contains("sk-dummy");
+        return ResponseEntity.ok(new ApiKeyResponse(isConfigured ? newKey : "", isConfigured));
     }
 }

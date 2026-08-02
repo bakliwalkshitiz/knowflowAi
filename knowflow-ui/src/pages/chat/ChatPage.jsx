@@ -366,8 +366,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     userApi.getApiKey().then(res => {
-      if (res?.data?.apiKey) {
+      if (res?.data?.apiKey && !res.data.apiKey.includes('sk-dummy')) {
         localStorage.setItem('kf_api_key', res.data.apiKey)
+      } else {
+        localStorage.removeItem('kf_api_key')
       }
     }).catch(() => {})
     documentApi.getAll().then(res => {
