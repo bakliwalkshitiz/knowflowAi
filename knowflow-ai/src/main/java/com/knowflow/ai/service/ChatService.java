@@ -89,33 +89,31 @@ public class ChatService {
 
     /**
      * BYOK: Build a ChatClient dynamically using the user's own OpenAI API key.
+     * Uses ONLY official OpenAI Java SDK classes (com.openai.core.ClientOptions & com.openai.client.OpenAIClientImpl).
      */
     private ChatClient getOrCreateByokClient(String apiKey) {
         return byokClientCache.computeIfAbsent(apiKey, key -> {
             log.info("Creating dynamic BYOK ChatClient for user key hash={}", key.hashCode());
             try {
-                com.openai.client.OpenAIClient openAiClient = org.springframework.ai.openai.setup.OpenAiSetup.setupSyncClient(
-                        null,
-                        key,
-                        null,
-                        null,
-                        null,
-                        "KnowFlowAI",
-                        false,
-                        true,
-                        "openai",
-                        null,
-                        2,
-                        null,
-                        java.util.Map.of(),
-                        observationRegistry,
-                        null,
-                        java.util.List.of()
-                );
+                org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient httpTransport =
+                        org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient.builder().build();
+
+                com.openai.core.ClientOptions clientOptions = com.openai.core.ClientOptions.builder()
+                        .httpClient(httpTransport)
+                        .apiKey(key)
+                        .baseUrl("https://api.openai.com/v1")
+                        .maxRetries(2)
+                        .build();
+
+                com.openai.client.OpenAIClient openAiClient = new com.openai.client.OpenAIClientImpl(clientOptions);
+
+                ObservationRegistry observationRegistry = ObservationRegistry.NOOP;
+
                 OpenAiChatModel dynamicModel = OpenAiChatModel.builder()
                         .openAiClient(openAiClient)
                         .observationRegistry(observationRegistry)
                         .build();
+
                 return ChatClient.builder(dynamicModel)
                         .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                         .defaultTools(toolBeans)
