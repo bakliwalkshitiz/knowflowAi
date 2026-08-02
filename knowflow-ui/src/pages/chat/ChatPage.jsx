@@ -6,7 +6,7 @@ import {
   PenSquare, Trash2, Check, Paperclip, Sparkles, AlertCircle, Layers
 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
-import { chatApi, documentApi } from '../../api/client'
+import { chatApi, documentApi, userApi } from '../../api/client'
 import mermaid from 'mermaid'
 
 mermaid.initialize({
