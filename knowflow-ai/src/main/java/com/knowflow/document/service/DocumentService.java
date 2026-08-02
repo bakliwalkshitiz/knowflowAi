@@ -129,11 +129,15 @@ public class DocumentService {
             chunk.getMetadata().put("uploadedAt", uploadedAt.toString());
         }
 
-        // Store embeddings
-        vectorStore.add(chunks);
-
-        log.info("Stored {} chunks in PGVector for user '{}', document '{}' (id={})",
-                chunks.size(), currentUser.getEmail(), originalFilename, documentId);
+        // Store embeddings safely (pure BYOK friendly)
+        try {
+            vectorStore.add(chunks);
+            log.info("Stored {} chunks in PGVector for user '{}', document '{}' (id={})",
+                    chunks.size(), currentUser.getEmail(), originalFilename, documentId);
+        } catch (Exception ex) {
+            log.warn("Vector store indexing skipped for document '{}' (id={}): {}",
+                    originalFilename, documentId, ex.getMessage());
+        }
 
         return new UploadResponse(
                 document.getId().toString(),

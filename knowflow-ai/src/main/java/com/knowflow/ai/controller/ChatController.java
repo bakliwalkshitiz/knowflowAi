@@ -42,16 +42,18 @@ public class ChatController {
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> stream(
             @RequestParam String conversationId,
-            @RequestParam String message) {
-        return chatService.stream(conversationId, message);
+            @RequestParam String message,
+            @RequestHeader(value = "X-OpenAI-Api-Key", required = false) String customApiKey) {
+        return chatService.stream(conversationId, message, customApiKey);
     }
 
     @PostMapping("/explain")
     public ExplainResponse explain(
             @RequestParam String conversationId,
-            @RequestParam String topic
+            @RequestParam String topic,
+            @RequestHeader(value = "X-OpenAI-Api-Key", required = false) String customApiKey
     ) {
-        return chatService.explain(conversationId, topic);
+        return chatService.explain(conversationId, topic, customApiKey);
     }
 
     @GetMapping("/history")

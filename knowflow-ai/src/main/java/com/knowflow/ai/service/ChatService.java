@@ -88,13 +88,24 @@ public class ChatService {
         return byokClientCache.computeIfAbsent(apiKey, key -> {
             log.info("Creating dynamic BYOK ChatClient for user key hash={}", key.hashCode());
             try {
-                org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient httpTransport =
-                        org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient.builder().build();
-                com.openai.core.ClientOptions clientOptions = com.openai.core.ClientOptions.builder()
-                        .httpClient(httpTransport)
-                        .apiKey(key)
-                        .build();
-                com.openai.client.OpenAIClient openAiClient = new com.openai.client.OpenAIClientImpl(clientOptions);
+                com.openai.client.OpenAIClient openAiClient = org.springframework.ai.openai.setup.OpenAiSetup.setupSyncClient(
+                        null,
+                        key,
+                        null,
+                        null,
+                        null,
+                        "KnowFlowAI",
+                        false,
+                        true,
+                        "openai",
+                        null,
+                        2,
+                        null,
+                        java.util.Map.of(),
+                        null,
+                        null,
+                        java.util.List.of()
+                );
                 OpenAiChatModel dynamicModel = OpenAiChatModel.builder()
                         .openAiClient(openAiClient)
                         .build();
@@ -253,30 +264,26 @@ public class ChatService {
         }
     }
 
-    public Flux<String> stream(String conversationId, String message) {
-
-        return chatClient
+    public Flux<String> stream(String conversationId, String message, String customApiKey) {
+        User currentUser = securityUtils.getCurrentUser();
+        ChatClient targetClient = resolveClient(customApiKey, currentUser);
+        return targetClient
                 .prompt()
-                .system("""
-                        You are KnowFlow AI.
-                        """)
+                .system("You are KnowFlow AI.")
                 .user(message)
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .stream()
                 .content();
     }
 
-    public ExplainResponse explain(String conversationId, String topic) {
-
-        return chatClient
+    public ExplainResponse explain(String conversationId, String topic, String customApiKey) {
+        User currentUser = securityUtils.getCurrentUser();
+        ChatClient targetClient = resolveClient(customApiKey, currentUser);
+        return targetClient
                 .prompt()
                 .system("""
-                        You are an expert Java teacher.
-
-                        Explain the given topic.
-
+                        You are an expert Java teacher. Explain the given topic.
                         Return ONLY valid JSON in the following format:
-
                         {
                           "title": "...",
                           "summary": "...",
