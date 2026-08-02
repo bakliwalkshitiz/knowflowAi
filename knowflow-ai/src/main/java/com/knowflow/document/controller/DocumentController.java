@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/documents")
+@RequestMapping({"/api/v1/documents", "/documents"})
 public class DocumentController {
 
     private final DocumentService documentService;
