@@ -188,6 +188,26 @@ public class DocumentService {
         }
     }
 
+    public String getDocumentText(UUID documentId) {
+        try {
+            Document document = documentRepository.findById(documentId).orElse(null);
+            if (document == null) return null;
+            Path filePath = Paths.get(document.getFilePath());
+            if (!Files.exists(filePath)) {
+                log.warn("Cannot read document text: File does not exist at {}", filePath);
+                return null;
+            }
+            String text = documentParser.extractText(filePath.toFile());
+            if (text != null && text.length() > 15000) {
+                return text.substring(0, 15000) + "\n...[truncated for length]";
+            }
+            return text;
+        } catch (Exception e) {
+            log.warn("Failed to extract document text for id {}: {}", documentId, e.getMessage());
+            return null;
+        }
+    }
+
     public List<Document> getAllDocuments() {
         User currentUser = securityUtils.getCurrentUser();
         return documentRepository.findByUser(currentUser);

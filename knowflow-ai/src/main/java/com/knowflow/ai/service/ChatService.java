@@ -124,16 +124,33 @@ public class ChatService {
                 matchingDocs = vectorStore.similaritySearch(searchRequest);
             }
 
+            String context = "";
             if (matchingDocs != null && !matchingDocs.isEmpty()) {
-                String context = matchingDocs.stream()
+                context = matchingDocs.stream()
                         .map(org.springframework.ai.document.Document::getText)
                         .filter(t -> t != null && !t.isBlank())
                         .collect(Collectors.joining("\n---\n"));
+            }
 
-                if (!context.isBlank()) {
-                    finalPrompt = basePrompt + "\n\n--- STRICT DOCUMENT CONTEXT FROM ATTACHED FILES ---\n" + context + "\n--- END CONTEXT ---";
-                    log.info("Appended {} vector context chunks for documentIds {} in conversation '{}'", matchingDocs.size(), documentIds, conversationId);
+            // Fallback: If vector search returns 0 chunks for attached documents (e.g. short/numerical prompts like "20" or "quiz"), extract document text directly
+            if ((context == null || context.isBlank()) && documentIds != null && !documentIds.isEmpty()) {
+                StringBuilder fallbackSb = new StringBuilder();
+                for (String docIdStr : documentIds) {
+                    try {
+                        String docText = documentService.getDocumentText(UUID.fromString(docIdStr));
+                        if (docText != null && !docText.isBlank()) {
+                            fallbackSb.append(docText).append("\n---\n");
+                        }
+                    } catch (Exception ex) {
+                        log.warn("Direct document text extraction warning for docId {}: {}", docIdStr, ex.getMessage());
+                    }
                 }
+                context = fallbackSb.toString();
+            }
+
+            if (context != null && !context.isBlank()) {
+                finalPrompt = basePrompt + "\n\n--- STRICT DOCUMENT CONTEXT FROM ATTACHED FILES ---\n" + context + "\n--- END CONTEXT ---";
+                log.info("Appended document context for documentIds {} in conversation '{}'", documentIds, conversationId);
             }
         } catch (Exception e) {
             log.warn("Vector similarity search warning for query '{}': {}", message, e.getMessage());

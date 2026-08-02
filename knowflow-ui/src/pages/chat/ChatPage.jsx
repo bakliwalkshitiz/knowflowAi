@@ -317,6 +317,20 @@ function MessageBubble({ msg, index, isHighlighted }) {
         border: `1px solid ${isUser ? 'var(--accent-bd)' : 'var(--border)'}`,
         fontSize: 13, lineHeight: 1.6, color: 'var(--text)',
       }}>
+        {msg.attachedDocs && msg.attachedDocs.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {msg.attachedDocs.map((doc, idx) => (
+              <div key={idx} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '4px 9px', borderRadius: 6, background: 'var(--surface)',
+                border: '1px solid var(--accent-bd)', fontSize: 11, fontWeight: 500, color: 'var(--text)'
+              }}>
+                <FileText size={12} style={{ color: 'var(--accent)' }} />
+                <span>{doc.fileName}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <MessageContent text={msg.content} />
         <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--subtle)' }}>{msg.time}</p>
       </div>
@@ -483,9 +497,11 @@ export default function ChatPage() {
     const promptToUse = text || (mode !== 'CHAT' ? DEFAULT_PROMPTS[mode] : '')
     if (!promptToUse || loading) return
 
+    const currentAttachedDocs = [...contextDocs]
     const userMsg = {
       role: 'user',
       content: promptToUse,
+      attachedDocs: currentAttachedDocs,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
 
@@ -503,6 +519,7 @@ export default function ChatPage() {
     saveSessions(updatedSessions)
 
     setInput('')
+    setContextDocs([])
     setLoading(true)
 
     try {
