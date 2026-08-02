@@ -27,8 +27,10 @@ class KnowflowAiApplicationTests {
 				null,
 				java.util.List.of()
 		);
+		io.micrometer.observation.ObservationRegistry observationRegistry = io.micrometer.observation.ObservationRegistry.create();
 		org.springframework.ai.openai.OpenAiChatModel model = org.springframework.ai.openai.OpenAiChatModel.builder()
 				.openAiClient(openAiClient)
+				.observationRegistry(observationRegistry)
 				.build();
 		org.springframework.ai.chat.client.ChatClient client = org.springframework.ai.chat.client.ChatClient.builder(model).build();
 		org.assertj.core.api.Assertions.assertThat(client).isNotNull();

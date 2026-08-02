@@ -20,6 +20,7 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -40,6 +41,8 @@ public class ChatService {
     private final VectorStore vectorStore;
     private final DocumentService documentService;
 
+    private final ObservationRegistry observationRegistry;
+
     // BYOK: Cache ChatClient instances per API key to avoid recreating on every request
     private final ConcurrentHashMap<String, ChatClient> byokClientCache = new ConcurrentHashMap<>();
 
@@ -59,7 +62,8 @@ public class ChatService {
                        ChatHistoryRepository chatHistoryRepository,
                        SecurityUtils securityUtils,
                        VectorStore vectorStore,
-                       DocumentService documentService) {
+                       DocumentService documentService,
+                       ObservationRegistry observationRegistry) {
 
         this.promptTemplateFactory = promptTemplateFactory;
         this.chatMemory = chatMemory;
@@ -67,6 +71,7 @@ public class ChatService {
         this.securityUtils = securityUtils;
         this.vectorStore = vectorStore;
         this.documentService = documentService;
+        this.observationRegistry = observationRegistry;
 
         this.toolBeans = new Object[]{
                 calculatorTool, dateTimeTool, uuidTool,
@@ -102,12 +107,13 @@ public class ChatService {
                         2,
                         null,
                         java.util.Map.of(),
-                        null,
+                        observationRegistry,
                         null,
                         java.util.List.of()
                 );
                 OpenAiChatModel dynamicModel = OpenAiChatModel.builder()
                         .openAiClient(openAiClient)
+                        .observationRegistry(observationRegistry)
                         .build();
                 return ChatClient.builder(dynamicModel)
                         .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
