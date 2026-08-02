@@ -6,6 +6,7 @@ public record ChatHistoryResponse(
         String conversationId,
         String prompt,
         String response,
+        String promptType,
         LocalDateTime createdAt
 ) {
 }

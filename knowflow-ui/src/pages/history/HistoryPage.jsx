@@ -2,16 +2,30 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   Clock, MessageSquare, ChevronRight, Search, Plus,
-  ArrowLeft, MessageCircle, User, Bot
+  ArrowLeft, MessageCircle, User, Bot, Filter, Tag
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { chatApi } from '../../api/client'
+
+const MODE_BADGES = {
+  SUMMARY:       { label: 'Summary',       color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.12)', border: 'rgba(96, 165, 250, 0.3)' },
+  SYSTEM_DESIGN: { label: 'System Design', color: '#c084fc', bg: 'rgba(192, 132, 252, 0.12)', border: 'rgba(192, 132, 252, 0.3)' },
+  FLASHCARD:     { label: 'Flashcard',     color: '#fb923c', bg: 'rgba(251, 146, 60, 0.12)', border: 'rgba(251, 146, 60, 0.3)' },
+  QUIZ:          { label: 'Quiz',          color: '#34d399', bg: 'rgba(52, 211, 153, 0.12)', border: 'rgba(52, 211, 153, 0.3)' },
+  INTERVIEW:     { label: 'Interview',     color: '#fb7185', bg: 'rgba(251, 113, 133, 0.12)', border: 'rgba(251, 113, 133, 0.3)' },
+  MINDMAP:       { label: 'Mind Map',      color: '#facc15', bg: 'rgba(250, 204, 21, 0.12)', border: 'rgba(250, 204, 21, 0.3)' },
+  CHAT:          { label: 'General Chat',  color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.12)', border: 'rgba(148, 163, 184, 0.3)' },
+}
 
 export default function HistoryPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const modeFilterParam = searchParams.get('mode') || searchParams.get('type')
+
   const [backendHistory, setBackendHistory] = useState([])
   const [searchSession, setSearchSession] = useState('')
   const [searchPrompt, setSearchPrompt] = useState('')
+  const [selectedMode, setSelectedMode] = useState(modeFilterParam || 'ALL')
   const [loading, setLoading] = useState(true)
   const [selectedSessionId, setSelectedSessionId] = useState(null)
 
@@ -24,6 +38,12 @@ export default function HistoryPage() {
       })
       .catch(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (modeFilterParam) {
+      setSelectedMode(modeFilterParam)
+    }
+  }, [modeFilterParam])
 
   // Read local chat sessions
   const localSessions = (() => {
@@ -58,8 +78,8 @@ export default function HistoryPage() {
     if (convId && sessionMap.has(convId)) {
       const sess = sessionMap.get(convId)
       if (!sess.messages.some(m => m.content === item.prompt || m.content === item.response)) {
-        if (item.prompt) sess.messages.push({ role: 'user', content: item.prompt, time: item.createdAt })
-        if (item.response) sess.messages.push({ role: 'ai', content: item.response, time: item.createdAt })
+        if (item.prompt) sess.messages.push({ role: 'user', content: item.prompt, time: item.createdAt, promptType: item.promptType })
+        if (item.response) sess.messages.push({ role: 'ai', content: item.response, time: item.createdAt, promptType: item.promptType })
       }
       if (item.createdAt && new Date(item.createdAt) > new Date(sess.lastAt)) {
         sess.lastAt = item.createdAt
@@ -77,15 +97,15 @@ export default function HistoryPage() {
           id: convId,
           title: item.prompt?.slice(0, 30) || 'Chat Session',
           messages: [
-            { role: 'user', content: item.prompt, time: item.createdAt },
-            { role: 'ai', content: item.response, time: item.createdAt },
+            { role: 'user', content: item.prompt, time: item.createdAt, promptType: item.promptType },
+            { role: 'ai', content: item.response, time: item.createdAt, promptType: item.promptType },
           ],
           lastAt: item.createdAt || new Date().toISOString(),
         })
       } else {
         const sess = sessionMap.get(convId)
-        sess.messages.push({ role: 'user', content: item.prompt, time: item.createdAt })
-        sess.messages.push({ role: 'ai', content: item.response, time: item.createdAt })
+        sess.messages.push({ role: 'user', content: item.prompt, time: item.createdAt, promptType: item.promptType })
+        sess.messages.push({ role: 'ai', content: item.response, time: item.createdAt, promptType: item.promptType })
       }
     })
   }
@@ -95,14 +115,18 @@ export default function HistoryPage() {
     (a, b) => new Date(b.lastAt) - new Date(a.lastAt)
   )
 
-  // Level 1: Filter session list by searchSession
+  // Filter session list by searchSession and selectedMode
   const filteredSessions = sessions.filter(s => {
-    if (!searchSession.trim()) return true
-    const q = searchSession.toLowerCase()
-    return (
-      s.title.toLowerCase().includes(q) ||
-      (Array.isArray(s.messages) && s.messages.some(m => m.content?.toLowerCase().includes(q)))
+    const matchesSearch = !searchSession.trim() || (
+      s.title.toLowerCase().includes(searchSession.toLowerCase()) ||
+      (Array.isArray(s.messages) && s.messages.some(m => m.content?.toLowerCase().includes(searchSession.toLowerCase())))
     )
+
+    const matchesMode = selectedMode === 'ALL' || (
+      Array.isArray(s.messages) && s.messages.some(m => (m.promptType || 'CHAT') === selectedMode)
+    )
+
+    return matchesSearch && matchesMode
   })
 
   // Level 2: Get active selected session detail
@@ -121,6 +145,7 @@ export default function HistoryPage() {
           prompt: promptMsg.content || '',
           response: aiMsg ? aiMsg.content : '',
           time: promptMsg.time || aiMsg?.time || '',
+          promptType: promptMsg.promptType || aiMsg?.promptType || 'CHAT',
         })
         if (aiMsg) i++
       } else if (safeMsgs[i].role === 'ai' && (i === 0 || safeMsgs[i - 1].role !== 'user')) {
@@ -129,6 +154,7 @@ export default function HistoryPage() {
           prompt: 'AI Response',
           response: safeMsgs[i].content || '',
           time: safeMsgs[i].time || '',
+          promptType: safeMsgs[i].promptType || 'CHAT',
         })
       }
     }
@@ -139,12 +165,12 @@ export default function HistoryPage() {
 
   // Level 2: Filter prompt pairs within selected session
   const filteredPairs = exchangePairs.filter(p => {
-    if (!searchPrompt.trim()) return true
-    const q = searchPrompt.toLowerCase()
-    return (
-      p.prompt.toLowerCase().includes(q) ||
-      p.response.toLowerCase().includes(q)
+    const matchesSearch = !searchPrompt.trim() || (
+      p.prompt.toLowerCase().includes(searchPrompt.toLowerCase()) ||
+      p.response.toLowerCase().includes(searchPrompt.toLowerCase())
     )
+    const matchesMode = selectedMode === 'ALL' || (p.promptType || 'CHAT') === selectedMode
+    return matchesSearch && matchesMode
   })
 
   const formatDate = (s) => {
@@ -157,7 +183,6 @@ export default function HistoryPage() {
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
   }
 
-  // Navigate to Chat UI with target prompt highlighted and scrolled into view!
   const openInChatWorkspace = (sessionId, promptText = '') => {
     const params = new URLSearchParams()
     params.set('session', sessionId)
@@ -167,19 +192,30 @@ export default function HistoryPage() {
     navigate(`/chat?${params.toString()}`)
   }
 
+  const modesList = [
+    { id: 'ALL', label: 'All Modes' },
+    { id: 'SUMMARY', label: 'Summaries' },
+    { id: 'SYSTEM_DESIGN', label: 'System Design' },
+    { id: 'FLASHCARD', label: 'Flashcards' },
+    { id: 'QUIZ', label: 'Quizzes' },
+    { id: 'INTERVIEW', label: 'Interview' },
+    { id: 'MINDMAP', label: 'Mind Maps' },
+    { id: 'CHAT', label: 'General Chat' },
+  ]
+
   return (
     <div style={{ padding: '28px 32px', maxWidth: 850, margin: '0 auto' }}>
 
       {/* ────────────────── LEVEL 1: SESSIONS LIST ────────────────── */}
       {!selectedSessionId && (
         <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
             <div>
               <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>
-                Chat History
+                Interaction History
               </h1>
               <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
-                Select a chat session to view its conversation history
+                View and filter your previous AI interactions by mode
               </p>
             </div>
 
@@ -196,12 +232,35 @@ export default function HistoryPage() {
             </button>
           </div>
 
+          {/* AI Mode Filter Pills */}
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, marginBottom: 14 }}>
+            {modesList.map(m => {
+              const active = selectedMode === m.id
+              const badge = MODE_BADGES[m.id]
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setSelectedMode(m.id)}
+                  style={{
+                    padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                    background: active ? (badge ? badge.bg : 'var(--accent-bg)') : 'var(--card)',
+                    color: active ? (badge ? badge.color : 'var(--accent)') : 'var(--muted)',
+                    whiteSpace: 'nowrap', transition: 'all 0.15s', flexShrink: 0,
+                  }}
+                >
+                  {m.label}
+                </button>
+              )
+            })}
+          </div>
+
           <div style={{ position: 'relative', marginBottom: 22 }}>
             <Search size={15} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
             <input
               value={searchSession}
               onChange={e => setSearchSession(e.target.value)}
-              placeholder="Search chat sessions (e.g. study, coding, algorithms)..."
+              placeholder="Search interaction history (e.g. quiz, summary, code)..."
               style={{
                 width: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12,
                 color: 'var(--text)', fontSize: 13, padding: '11px 14px 11px 40px', outline: 'none',
@@ -222,10 +281,10 @@ export default function HistoryPage() {
             <div style={{ textAlign: 'center', padding: '60px 0' }}>
               <MessageCircle size={40} style={{ color: 'var(--border)', margin: '0 auto 14px' }} />
               <h3 style={{ fontSize: 16, fontWeight: 500, color: 'var(--muted)', margin: '0 0 6px' }}>
-                {searchSession ? 'No matching chat sessions found' : 'No chat history yet'}
+                {searchSession || selectedMode !== 'ALL' ? 'No matching interaction logs found' : 'No chat history yet'}
               </h3>
               <p style={{ fontSize: 13, color: 'var(--subtle)', margin: 0 }}>
-                {searchSession ? 'Try searching with another keyword' : 'Create a new chat session to save your history'}
+                {searchSession || selectedMode !== 'ALL' ? 'Try switching mode filters or search terms' : 'Create a new chat session to save your history'}
               </p>
             </div>
           ) : (
@@ -233,6 +292,9 @@ export default function HistoryPage() {
               {filteredSessions.map((session, i) => {
                 const pairs = getExchangePairs(session.messages)
                 const lastMsgSnippet = pairs[pairs.length - 1]?.prompt || session.messages?.[session.messages.length - 1]?.content || 'Empty chat session'
+                const pType = pairs[pairs.length - 1]?.promptType || 'CHAT'
+                const badge = MODE_BADGES[pType] || MODE_BADGES.CHAT
+
                 return (
                   <motion.div
                     key={session.id}
@@ -250,14 +312,14 @@ export default function HistoryPage() {
                   >
                     <div style={{
                       width: 42, height: 42, borderRadius: 11,
-                      background: 'var(--accent-bg)', border: '1px solid var(--accent-bd)',
+                      background: badge.bg, border: `1px solid ${badge.border}`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                     }}>
-                      <MessageSquare size={18} style={{ color: 'var(--accent)' }} />
+                      <MessageSquare size={18} style={{ color: badge.color }} />
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 8 }}>
                         <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {session.title}
                         </p>
@@ -272,10 +334,13 @@ export default function HistoryPage() {
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{
-                          fontSize: 10, fontWeight: 600, color: 'var(--accent)',
-                          background: 'var(--accent-bg)', padding: '2px 8px', borderRadius: 6,
+                          fontSize: 9, fontWeight: 700, color: badge.color,
+                          background: badge.bg, border: `1px solid ${badge.border}`, padding: '2px 7px', borderRadius: 5,
                         }}>
-                          {pairs.length || session.messages?.length || 0} conversation{pairs.length !== 1 ? 's' : ''}
+                          {badge.label}
+                        </span>
+                        <span style={{ fontSize: 10, color: 'var(--subtle)' }}>
+                          {pairs.length || session.messages?.length || 0} message{pairs.length !== 1 ? 's' : ''}
                         </span>
                       </div>
                     </div>
@@ -358,65 +423,76 @@ export default function HistoryPage() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {filteredPairs.map((pair, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.03 }}
-                  onClick={() => openInChatWorkspace(activeSession.id, pair.prompt)}
-                  style={{
-                    background: 'var(--card)', border: '1px solid var(--border)',
-                    borderRadius: 14, padding: '16px 18px', cursor: 'pointer', transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-bd)'; e.currentTarget.style.background = 'var(--card-hover)' }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--card)' }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: pair.response ? 10 : 0 }}>
-                    <div style={{
-                      width: 26, height: 26, borderRadius: 7, background: 'var(--accent-bg)',
-                      border: '1px solid var(--accent-bd)', display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', flexShrink: 0, marginTop: 2,
-                    }}>
-                      <User size={13} style={{ color: 'var(--accent)' }} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '0 0 2px' }}>
-                        {pair.prompt}
-                      </p>
-                      {pair.time && (
-                        <span style={{ fontSize: 10, color: 'var(--subtle)' }}>
-                          {formatDate(pair.time)}
-                        </span>
-                      )}
-                    </div>
-                    <ChevronRight size={15} style={{ color: 'var(--subtle)', flexShrink: 0, marginTop: 4 }} />
-                  </div>
-
-                  {pair.response && (
-                    <div style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 10,
-                      padding: '10px 12px', borderRadius: 10, background: 'var(--surface)',
-                      border: '1px solid var(--border-sub)', marginTop: 8,
-                    }}>
+              {filteredPairs.map((pair, idx) => {
+                const badge = MODE_BADGES[pair.promptType] || MODE_BADGES.CHAT
+                return (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.03 }}
+                    onClick={() => openInChatWorkspace(activeSession.id, pair.prompt)}
+                    style={{
+                      background: 'var(--card)', border: '1px solid var(--border)',
+                      borderRadius: 14, padding: '16px 18px', cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-bd)'; e.currentTarget.style.background = 'var(--card-hover)' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--card)' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: pair.response ? 10 : 0 }}>
                       <div style={{
-                        width: 22, height: 22, borderRadius: 6, background: 'var(--card)',
-                        border: '1px solid var(--border)', display: 'flex', alignItems: 'center',
+                        width: 26, height: 26, borderRadius: 7, background: badge.bg,
+                        border: `1px solid ${badge.border}`, display: 'flex', alignItems: 'center',
                         justifyContent: 'center', flexShrink: 0, marginTop: 2,
                       }}>
-                        <Bot size={12} style={{ color: 'var(--muted)' }} />
+                        <User size={13} style={{ color: badge.color }} />
                       </div>
-                      <p style={{
-                        fontSize: 12, color: 'var(--muted)', margin: 0,
-                        lineHeight: 1.5, overflow: 'hidden',
-                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                      }}>
-                        {pair.response}
-                      </p>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 2 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: 0, flex: 1 }}>
+                            {pair.prompt}
+                          </p>
+                          <span style={{
+                            fontSize: 9, fontWeight: 700, color: badge.color,
+                            background: badge.bg, border: `1px solid ${badge.border}`, padding: '2px 6px', borderRadius: 4,
+                          }}>
+                            {badge.label}
+                          </span>
+                        </div>
+                        {pair.time && (
+                          <span style={{ fontSize: 10, color: 'var(--subtle)' }}>
+                            {formatDate(pair.time)}
+                          </span>
+                        )}
+                      </div>
+                      <ChevronRight size={15} style={{ color: 'var(--subtle)', flexShrink: 0, marginTop: 4 }} />
                     </div>
-                  )}
-                </motion.div>
-              ))}
+
+                    {pair.response && (
+                      <div style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 10,
+                        padding: '10px 12px', borderRadius: 10, background: 'var(--surface)',
+                        border: '1px solid var(--border-sub)', marginTop: 8,
+                      }}>
+                        <div style={{
+                          width: 22, height: 22, borderRadius: 6, background: 'var(--card)',
+                          border: '1px solid var(--border)', display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', flexShrink: 0, marginTop: 2,
+                        }}>
+                          <Bot size={12} style={{ color: 'var(--muted)' }} />
+                        </div>
+                        <p style={{
+                          fontSize: 12, color: 'var(--muted)', margin: 0,
+                          lineHeight: 1.5, overflow: 'hidden',
+                          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                        }}>
+                          {pair.response}
+                        </p>
+                      </div>
+                    )}
+                  </motion.div>
+                )
+              })}
             </div>
           )}
         </motion.div>

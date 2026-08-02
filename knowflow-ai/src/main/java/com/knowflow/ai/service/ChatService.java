@@ -189,13 +189,14 @@ public class ChatService {
             log.info("Chat response generated successfully for user={} conversationId={} responseLength={}",
                     currentUser.getEmail(), conversationId, response != null ? response.length() : 0);
 
-            // Persist chat exchange for the authenticated user
+            // Persist chat exchange for the authenticated user with explicit promptType mode
             chatHistoryRepository.save(
                     ChatHistory.builder()
                             .user(currentUser)
                             .conversationId(conversationId)
                             .prompt(message)
                             .response(response)
+                            .promptType(type != null ? type : PromptType.CHAT)
                             .build()
             );
 
@@ -249,6 +250,7 @@ public class ChatService {
                         h.getConversationId(),
                         h.getPrompt(),
                         h.getResponse(),
+                        h.getPromptType() != null ? h.getPromptType().name() : "CHAT",
                         h.getCreatedAt()
                 ))
                 .toList();
@@ -267,6 +269,7 @@ public class ChatService {
                         h.getConversationId(),
                         h.getPrompt(),
                         h.getResponse(),
+                        h.getPromptType() != null ? h.getPromptType().name() : "CHAT",
                         h.getCreatedAt()
                 ))
                 .toList();

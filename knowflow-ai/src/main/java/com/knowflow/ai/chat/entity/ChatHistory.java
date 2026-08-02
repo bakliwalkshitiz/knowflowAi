@@ -1,5 +1,6 @@
 package com.knowflow.ai.chat.entity;
 
+import com.knowflow.common.enums.PromptType;
 import com.knowflow.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -33,6 +34,10 @@ public class ChatHistory {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String response;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "prompt_type")
+    private PromptType promptType;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

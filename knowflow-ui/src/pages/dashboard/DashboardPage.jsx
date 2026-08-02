@@ -11,6 +11,16 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { documentApi, chatApi } from '../../api/client'
 
+const MODE_BADGES = {
+  SUMMARY:       { label: 'Summary',       color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.12)', border: 'rgba(96, 165, 250, 0.3)' },
+  SYSTEM_DESIGN: { label: 'System Design', color: '#c084fc', bg: 'rgba(192, 132, 252, 0.12)', border: 'rgba(192, 132, 252, 0.3)' },
+  FLASHCARD:     { label: 'Flashcard',     color: '#fb923c', bg: 'rgba(251, 146, 60, 0.12)', border: 'rgba(251, 146, 60, 0.3)' },
+  QUIZ:          { label: 'Quiz',          color: '#34d399', bg: 'rgba(52, 211, 153, 0.12)', border: 'rgba(52, 211, 153, 0.3)' },
+  INTERVIEW:     { label: 'Interview',     color: '#fb7185', bg: 'rgba(251, 113, 133, 0.12)', border: 'rgba(251, 113, 133, 0.3)' },
+  MINDMAP:       { label: 'Mind Map',      color: '#facc15', bg: 'rgba(250, 204, 21, 0.12)', border: 'rgba(250, 204, 21, 0.3)' },
+  CHAT:          { label: 'General Chat',  color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.12)', border: 'rgba(148, 163, 184, 0.3)' },
+}
+
 /* ────────────────── STAT CARD COMPONENT ────────────────── */
 function MetricCard({ icon: Icon, label, value, subtext, color, delay = 0 }) {
   return (
@@ -116,14 +126,14 @@ export default function DashboardPage() {
   const totalChats = chatHistory.length
   const totalMB = stats?.totalFileSize ? (stats.totalFileSize / 1024 / 1024).toFixed(2) : (recentDocs.reduce((acc, d) => acc + (d.fileSize || 0), 0) / 1024 / 1024).toFixed(2)
 
-  // Calculate real mode execution counts by scanning chatHistory
-  const summaryCount = chatHistory.filter(h => (h.prompt || '').toLowerCase().includes('summar')).length
-  const systemDesignCount = chatHistory.filter(h => (h.prompt || '').toLowerCase().includes('system design') || (h.prompt || '').toLowerCase().includes('lld') || (h.prompt || '').toLowerCase().includes('hld')).length
-  const flashcardCount = chatHistory.filter(h => (h.prompt || '').toLowerCase().includes('flashcard') || (h.prompt || '').toLowerCase().includes('study')).length
-  const quizCount = chatHistory.filter(h => (h.prompt || '').toLowerCase().includes('quiz') || (h.prompt || '').toLowerCase().includes('mcq')).length
-  const interviewCount = chatHistory.filter(h => (h.prompt || '').toLowerCase().includes('interview')).length
-  const mindmapCount = chatHistory.filter(h => (h.prompt || '').toLowerCase().includes('mind map') || (h.prompt || '').toLowerCase().includes('mindmap')).length
-  const generalChatCount = Math.max(0, totalChats - (summaryCount + systemDesignCount + flashcardCount + quizCount + interviewCount + mindmapCount))
+  // Calculate real mode execution counts from chatHistory promptType field
+  const summaryCount       = chatHistory.filter(h => h.promptType === 'SUMMARY').length
+  const systemDesignCount  = chatHistory.filter(h => h.promptType === 'SYSTEM_DESIGN').length
+  const flashcardCount     = chatHistory.filter(h => h.promptType === 'FLASHCARD').length
+  const quizCount          = chatHistory.filter(h => h.promptType === 'QUIZ').length
+  const interviewCount     = chatHistory.filter(h => h.promptType === 'INTERVIEW').length
+  const mindmapCount       = chatHistory.filter(h => h.promptType === 'MINDMAP').length
+  const generalChatCount   = chatHistory.filter(h => h.promptType === 'CHAT' || !h.promptType).length
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: 1150, margin: '0 auto' }}>
@@ -156,7 +166,7 @@ export default function DashboardPage() {
         </button>
       </motion.div>
 
-      {/* ── CORE STATS GRID (4 REAL COUNTERS) ── */}
+      {/* ── CORE STATS GRID ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
         <MetricCard icon={FileText}       label="Documents Vault"  value={docCount}   subtext="files uploaded" delay={0} />
         <MetricCard icon={Layers}         label="Vector Chunks"    value={chunkCount} subtext="indexed in PGVector" delay={0.05} />
@@ -192,36 +202,49 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {chatHistory.slice(0, 7).map((item, i) => (
-                  <div
-                    key={i}
-                    onClick={() => navigate(`/chat?session=${item.conversationId}&highlight=${encodeURIComponent(item.prompt.slice(0, 20))}`)}
-                    style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 12px',
-                      borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border-sub)',
-                      cursor: 'pointer', transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-bd)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-sub)'}
-                  >
-                    <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--card)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
-                      <Zap size={13} style={{ color: 'var(--accent)' }} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {item.prompt}
-                        </p>
-                        <span style={{ fontSize: 10, color: 'var(--subtle)', flexShrink: 0, marginLeft: 8 }}>
-                          {formatDate(item.createdAt)}
-                        </span>
+                {chatHistory.slice(0, 7).map((item, i) => {
+                  const pType = item.promptType || 'CHAT'
+                  const badge = MODE_BADGES[pType] || MODE_BADGES.CHAT
+
+                  return (
+                    <div
+                      key={i}
+                      onClick={() => navigate(`/chat?session=${item.conversationId}&highlight=${encodeURIComponent(item.prompt.slice(0, 20))}`)}
+                      style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 12px',
+                        borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border-sub)',
+                        cursor: 'pointer', transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-bd)'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-sub)'}
+                    >
+                      <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--card)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                        <Zap size={13} style={{ color: badge.color }} />
                       </div>
-                      <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {item.response?.slice(0, 95)}
-                      </p>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3, gap: 8 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                            {item.prompt}
+                          </p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                            <span style={{
+                              fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 5,
+                              color: badge.color, background: badge.bg, border: `1px solid ${badge.border}`,
+                            }}>
+                              {badge.label}
+                            </span>
+                            <span style={{ fontSize: 10, color: 'var(--subtle)' }}>
+                              {formatDate(item.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+                        <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.response?.slice(0, 95)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -287,13 +310,13 @@ export default function DashboardPage() {
             <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 16px' }}>Computed from your actual interaction history</p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <ModeUsageItem icon={FileText}      label="Summaries"        count={summaryCount}     onClick={() => navigate('/chat?mode=SUMMARY')} />
-              <ModeUsageItem icon={Layers}        label="System Design"    count={systemDesignCount} onClick={() => navigate('/chat?mode=SYSTEM_DESIGN')} />
-              <ModeUsageItem icon={BookOpen}      label="Flashcards"       count={flashcardCount}   onClick={() => navigate('/chat?mode=FLASHCARD')} />
-              <ModeUsageItem icon={HelpCircle}    label="Quizzes"          count={quizCount}        onClick={() => navigate('/chat?mode=QUIZ')} />
-              <ModeUsageItem icon={Mic}           label="Interview Prep"   count={interviewCount}   onClick={() => navigate('/chat?mode=INTERVIEW')} />
-              <ModeUsageItem icon={Brain}         label="Mind Maps"        count={mindmapCount}     onClick={() => navigate('/chat?mode=MINDMAP')} />
-              <ModeUsageItem icon={MessageSquare} label="General Chat"     count={generalChatCount} onClick={() => navigate('/chat?mode=CHAT')} />
+              <ModeUsageItem icon={FileText}      label="Summaries"        count={summaryCount}     onClick={() => navigate('/history?mode=SUMMARY')} />
+              <ModeUsageItem icon={Layers}        label="System Design"    count={systemDesignCount} onClick={() => navigate('/history?mode=SYSTEM_DESIGN')} />
+              <ModeUsageItem icon={BookOpen}      label="Flashcards"       count={flashcardCount}   onClick={() => navigate('/history?mode=FLASHCARD')} />
+              <ModeUsageItem icon={HelpCircle}    label="Quizzes"          count={quizCount}        onClick={() => navigate('/history?mode=QUIZ')} />
+              <ModeUsageItem icon={Mic}           label="Interview Prep"   count={interviewCount}   onClick={() => navigate('/history?mode=INTERVIEW')} />
+              <ModeUsageItem icon={Brain}         label="Mind Maps"        count={mindmapCount}     onClick={() => navigate('/history?mode=MINDMAP')} />
+              <ModeUsageItem icon={MessageSquare} label="General Chat"     count={generalChatCount} onClick={() => navigate('/history?mode=CHAT')} />
             </div>
           </div>
 
