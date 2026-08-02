@@ -386,7 +386,22 @@ export default function ChatPage() {
     })
   }
 
-  const activeSession = sessions.find(s => s.id === activeId) || sessions[0]
+  useEffect(() => {
+    const sync = () => setSessions(loadSessions())
+    window.addEventListener('storage', sync)
+    window.addEventListener('kf_sessions_updated', sync)
+    return () => {
+      window.removeEventListener('storage', sync)
+      window.removeEventListener('kf_sessions_updated', sync)
+    }
+  }, [])
+
+  const activeSession = sessions.find(s => s.id === activeId) || {
+    id: activeId || `conv-${Date.now()}`,
+    name: 'General Chat',
+    messages: [],
+    createdAt: new Date().toISOString(),
+  }
 
   useEffect(() => {
     documentApi.getAll().then(res => {
@@ -396,7 +411,9 @@ export default function ChatPage() {
   }, [])
 
   useEffect(() => {
-    if (sessionUrlParam && sessionUrlParam !== activeId) {
+    if (sessionUrlParam) {
+      const current = loadSessions()
+      setSessions(current)
       setActiveId(sessionUrlParam)
     }
   }, [sessionUrlParam])
