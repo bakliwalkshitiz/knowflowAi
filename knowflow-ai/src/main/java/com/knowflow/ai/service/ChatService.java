@@ -88,8 +88,10 @@ public class ChatService {
         return byokClientCache.computeIfAbsent(apiKey, key -> {
             log.info("Creating dynamic BYOK ChatClient for user key hash={}", key.hashCode());
             try {
-                com.openai.core.ClientOptions clientOptions = com.openai.core.ClientOptions.fromEnv()
-                        .toBuilder()
+                org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient httpTransport =
+                        org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient.builder().build();
+                com.openai.core.ClientOptions clientOptions = com.openai.core.ClientOptions.builder()
+                        .httpClient(httpTransport)
                         .apiKey(key)
                         .build();
                 com.openai.client.OpenAIClient openAiClient = new com.openai.client.OpenAIClientImpl(clientOptions);
@@ -102,7 +104,7 @@ public class ChatService {
                         .build();
             } catch (Exception ex) {
                 log.error("Failed to construct dynamic BYOK ChatClient: {}", ex.getMessage(), ex);
-                throw new IllegalArgumentException("Failed to construct dynamic BYOK ChatClient: " + ex.getMessage(), ex);
+                throw new IllegalArgumentException("Failed to construct BYOK ChatClient: " + ex.getMessage(), ex);
             }
         });
     }
