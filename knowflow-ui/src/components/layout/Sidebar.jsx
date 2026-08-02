@@ -1,10 +1,10 @@
-import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   LayoutDashboard, MessageSquare, FileText,
   History, Settings, LogOut, ChevronRight, Shield,
-  ChevronsLeft, ChevronsRight
+  ChevronsLeft, ChevronsRight, Plus, Trash2, PenSquare, Check, X
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -16,11 +16,45 @@ const navItems = [
   { icon: Settings,        label: 'Settings',   path: '/settings' },
 ]
 
+function loadSessions() {
+  try {
+    const raw = localStorage.getItem('kf_sessions')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed && parsed.length > 0) return parsed
+    }
+  } catch {}
+  return [{ id: `conv-${Date.now()}`, name: 'General Chat', messages: [], createdAt: new Date().toISOString() }]
+}
+
+function saveSessions(sessions) {
+  try {
+    localStorage.setItem('kf_sessions', JSON.stringify(sessions))
+    window.dispatchEvent(new Event('kf_sessions_updated'))
+  } catch {}
+}
+
 export default function Sidebar() {
   const navigate  = useNavigate()
   const location  = useLocation()
+  const [searchParams] = useSearchParams()
+  const activeSessionIdFromUrl = searchParams.get('session')
   const { user, logout } = useAuth()
+  
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('kf_sidebar_collapsed') === 'true')
+  const [sessions, setSessions] = useState(loadSessions)
+  const [renamingId, setRenamingId] = useState(null)
+  const [renameInput, setRenameInput] = useState('')
+
+  useEffect(() => {
+    const sync = () => setSessions(loadSessions())
+    window.addEventListener('storage', sync)
+    window.addEventListener('kf_sessions_updated', sync)
+    return () => {
+      window.removeEventListener('storage', sync)
+      window.removeEventListener('kf_sessions_updated', sync)
+    }
+  }, [])
 
   const toggleCollapse = () => {
     setCollapsed(prev => {
@@ -31,6 +65,41 @@ export default function Sidebar() {
   }
 
   const handleLogout = () => { logout(); navigate('/login') }
+
+  const createNewChat = () => {
+    const newId = `conv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const newSess = { id: newId, name: 'General Chat', messages: [], createdAt: new Date().toISOString() }
+    const updated = [newSess, ...sessions]
+    setSessions(updated)
+    saveSessions(updated)
+    navigate(`/chat?session=${newId}`)
+  }
+
+  const handleSelectSession = (id) => {
+    navigate(`/chat?session=${id}`)
+  }
+
+  const handleSaveRename = (id) => {
+    if (renameInput.trim()) {
+      const updated = sessions.map(s => s.id === id ? { ...s, name: renameInput.trim() } : s)
+      setSessions(updated)
+      saveSessions(updated)
+    }
+    setRenamingId(null)
+  }
+
+  const handleDeleteSession = (e, id) => {
+    e.stopPropagation()
+    const updated = sessions.filter(s => s.id !== id)
+    const next = updated.length > 0 ? updated : [{ id: `conv-${Date.now()}`, name: 'General Chat', messages: [], createdAt: new Date().toISOString() }]
+    setSessions(next)
+    saveSessions(next)
+    if (activeSessionIdFromUrl === id || location.pathname.startsWith('/chat')) {
+      navigate(`/chat?session=${next[0].id}`)
+    }
+  }
+
+  const isChatRoute = location.pathname.startsWith('/chat')
 
   return (
     <motion.aside
@@ -50,7 +119,7 @@ export default function Sidebar() {
       {/* Brand & Collapse Toggle */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between',
-        padding: '4px 6px', marginBottom: 24, gap: 8,
+        padding: '4px 6px', marginBottom: 20, gap: 8,
       }}>
         {!collapsed && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
@@ -80,32 +149,154 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto' }}>
         {navItems.map(({ icon: Icon, label, path }) => {
           const active = location.pathname.startsWith(path)
+          const isChat = path === '/chat'
+
           return (
-            <motion.button
-              key={path}
-              title={collapsed ? label : ''}
-              whileHover={{ x: active ? 0 : 2 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => navigate(path)}
-              style={{
-                display: 'flex', alignItems: 'center',
-                justifyContent: collapsed ? 'center' : 'flex-start',
-                gap: 10, width: '100%', padding: '9px 12px',
-                borderRadius: 10, border: 'none', cursor: 'pointer',
-                fontSize: 13, fontWeight: 500, textAlign: 'left',
-                background: active ? 'var(--accent-bg)' : 'transparent',
-                color: active ? 'var(--accent)' : 'var(--muted)',
-                borderLeft: active ? '2px solid var(--accent)' : '2px solid transparent',
-                transition: 'all 0.15s',
-              }}
-            >
-              <Icon size={18} strokeWidth={active ? 2 : 1.5} style={{ flexShrink: 0 }} />
-              {!collapsed && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>}
-              {!collapsed && active && <ChevronRight size={13} style={{ marginLeft: 'auto', color: 'var(--accent)', flexShrink: 0 }} />}
-            </motion.button>
+            <div key={path} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <motion.button
+                title={collapsed ? label : ''}
+                whileHover={{ x: active ? 0 : 2 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  if (isChat && sessions.length > 0) {
+                    navigate(`/chat?session=${activeSessionIdFromUrl || sessions[0].id}`)
+                  } else {
+                    navigate(path)
+                  }
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center',
+                  justify: collapsed ? 'center' : 'flex-start',
+                  gap: 10, width: '100%', padding: '9px 12px',
+                  borderRadius: 10, border: 'none', cursor: 'pointer',
+                  fontSize: 13, fontWeight: 500, textAlign: 'left',
+                  background: active ? 'var(--accent-bg)' : 'transparent',
+                  color: active ? 'var(--accent)' : 'var(--muted)',
+                  borderLeft: active ? '2px solid var(--accent)' : '2px solid transparent',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <Icon size={18} strokeWidth={active ? 2 : 1.5} style={{ flexShrink: 0 }} />
+                {!collapsed && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>}
+                {!collapsed && active && <ChevronRight size={13} style={{ marginLeft: 'auto', color: 'var(--accent)', flexShrink: 0 }} />}
+              </motion.button>
+
+              {/* Nested Chat Section when on Chat Route */}
+              {isChat && isChatRoute && !collapsed && (
+                <div style={{
+                  marginLeft: 12, paddingLeft: 10, borderLeft: '1px solid var(--border)',
+                  display: 'flex', flexDirection: 'column', gap: 6, margin: '4px 0 8px',
+                }}>
+                  {/* New Chat Button */}
+                  <button
+                    onClick={createNewChat}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      width: '100%', padding: '7px 10px', borderRadius: 8,
+                      border: '1px dashed var(--accent-bd)', background: 'var(--accent-bg)',
+                      color: 'var(--accent)', fontSize: 12, fontWeight: 600,
+                      cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(96, 165, 250, 0.2)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'var(--accent-bg)'}
+                  >
+                    <Plus size={14} />
+                    <span>New Chat</span>
+                  </button>
+
+                  {/* Recent Chats Header */}
+                  <p style={{
+                    fontSize: 10, fontWeight: 600, color: 'var(--subtle)',
+                    textTransform: 'uppercase', letterSpacing: '0.05em', margin: '4px 0 2px 4px',
+                  }}>
+                    Recent Chats
+                  </p>
+
+                  {/* Scrollable Chat Sessions List */}
+                  <div style={{
+                    maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2,
+                    paddingRight: 2,
+                  }}>
+                    {sessions.map(s => {
+                      const isActiveSession = (activeSessionIdFromUrl === s.id) || (!activeSessionIdFromUrl && s.id === sessions[0]?.id)
+                      const isRenamingThis = renamingId === s.id
+
+                      return (
+                        <div
+                          key={s.id}
+                          onClick={() => handleSelectSession(s.id)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
+                            fontSize: 12, fontWeight: isActiveSession ? 600 : 400,
+                            background: isActiveSession ? 'var(--card)' : 'transparent',
+                            color: isActiveSession ? 'var(--text)' : 'var(--muted)',
+                            border: `1px solid ${isActiveSession ? 'var(--border)' : 'transparent'}`,
+                            transition: 'all 0.12s', position: 'relative',
+                          }}
+                          onMouseEnter={e => {
+                            if (!isActiveSession) e.currentTarget.style.background = 'var(--card-hover)';
+                            const actions = e.currentTarget.querySelector('.chat-actions');
+                            if (actions) actions.style.opacity = '1';
+                          }}
+                          onMouseLeave={e => {
+                            if (!isActiveSession) e.currentTarget.style.background = 'transparent';
+                            const actions = e.currentTarget.querySelector('.chat-actions');
+                            if (actions) actions.style.opacity = '0';
+                          }}
+                        >
+                          <MessageSquare size={13} style={{ color: isActiveSession ? 'var(--accent)' : 'var(--subtle)', flexShrink: 0 }} />
+
+                          {isRenamingThis ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 }}>
+                              <input
+                                value={renameInput}
+                                onChange={e => setRenameInput(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') handleSaveRename(s.id); if (e.key === 'Escape') setRenamingId(null) }}
+                                autoFocus
+                                onClick={e => e.stopPropagation()}
+                                style={{
+                                  width: '100%', fontSize: 11, background: 'var(--surface)', border: '1px solid var(--accent)',
+                                  borderRadius: 4, color: 'var(--text)', padding: '2px 4px', outline: 'none',
+                                }}
+                              />
+                              <button onClick={(e) => { e.stopPropagation(); handleSaveRename(s.id) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--success)', padding: 1 }}><Check size={12} /></button>
+                              <button onClick={(e) => { e.stopPropagation(); setRenamingId(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 1 }}><X size={12} /></button>
+                            </div>
+                          ) : (
+                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {s.name}
+                            </span>
+                          )}
+
+                          {!isRenamingThis && (
+                            <div className="chat-actions" style={{ display: 'flex', gap: 4, opacity: 0, transition: 'opacity 0.15s', flexShrink: 0 }}>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setRenamingId(s.id); setRenameInput(s.name) }}
+                                title="Rename Chat"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--subtle)', padding: 1 }}
+                              >
+                                <PenSquare size={11} />
+                              </button>
+                              <button
+                                onClick={(e) => handleDeleteSession(e, s.id)}
+                                title="Delete Chat"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--subtle)', padding: 1 }}
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           )
         })}
       </nav>

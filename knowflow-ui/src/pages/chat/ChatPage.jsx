@@ -564,58 +564,7 @@ export default function ChatPage() {
   const { today, week, older } = groupSessions(sessions)
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-
-      {/* ── LEFT SIDEBAR: SESSION HISTORY ── */}
-      <div style={{
-        width: 250, flexShrink: 0, background: 'var(--surface)',
-        borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column',
-        padding: 12, gap: 12,
-      }}>
-        <button
-          onClick={newChat}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            padding: '9px 14px', borderRadius: 9, border: '1px solid var(--border)',
-            background: 'var(--card)', color: 'var(--text)', fontSize: 13, fontWeight: 500,
-            cursor: 'pointer', transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--card-hover)' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--card)' }}
-        >
-          <Plus size={15} style={{ color: 'var(--accent)' }} />
-          New Chat
-        </button>
-
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {today.length > 0 && (
-            <div>
-              <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--subtle)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px 6px' }}>Today</p>
-              {today.map(s => (
-                <SessionItem key={s.id} session={s} active={s.id === activeId} onClick={() => setActiveId(s.id)} onRename={renameSession} onDelete={deleteSession} />
-              ))}
-            </div>
-          )}
-
-          {week.length > 0 && (
-            <div>
-              <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--subtle)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px 6px' }}>Previous 7 Days</p>
-              {week.map(s => (
-                <SessionItem key={s.id} session={s} active={s.id === activeId} onClick={() => setActiveId(s.id)} onRename={renameSession} onDelete={deleteSession} />
-              ))}
-            </div>
-          )}
-
-          {older.length > 0 && (
-            <div>
-              <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--subtle)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px 6px' }}>Older</p>
-              {older.map(s => (
-                <SessionItem key={s.id} session={s} active={s.id === activeId} onClick={() => setActiveId(s.id)} onRename={renameSession} onDelete={deleteSession} />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', flex: 1 }}>
 
       {/* ── MAIN CHAT AREA ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--bg)' }}>
@@ -784,7 +733,10 @@ export default function ChatPage() {
           Vault Documents
         </h3>
 
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{
+          flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6,
+          maxHeight: 'calc(100vh - 80px)', paddingRight: 4,
+        }}>
           {documents.length === 0 ? (
             <p style={{ fontSize: 11, color: 'var(--subtle)', textAlign: 'center', padding: '20px 0', margin: 0 }}>
               No documents in vault.<br />Click 📎 in the chat box to upload!
