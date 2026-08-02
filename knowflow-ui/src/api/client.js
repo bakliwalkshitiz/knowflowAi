@@ -7,8 +7,6 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('kf_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
-  const apiKey = localStorage.getItem('kf_api_key')
-  if (apiKey && !apiKey.includes('sk-dummy')) config.headers['X-OpenAI-Api-Key'] = apiKey
   return config
 })
 
@@ -49,8 +47,7 @@ export const chatApi = {
 }
 
 export const userApi = {
-  getApiKey:    () => api.get('/user/api-key'),
-  updateApiKey: (apiKey) => api.post('/user/api-key', { apiKey }),
+  getMe: () => api.get('/user/me'),
 }
 
 export const ragApi = {

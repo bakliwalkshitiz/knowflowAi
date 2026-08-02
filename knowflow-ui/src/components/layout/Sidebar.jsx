@@ -63,13 +63,6 @@ export default function Sidebar() {
   const navigate  = useNavigate()
   const location  = useLocation()
   const { user, logout } = useAuth()
-  const [apiKeyConfigured, setApiKeyConfigured] = useState(false)
-
-  useEffect(() => {
-    userApi.getApiKey().then(res => {
-      if (res?.data) setApiKeyConfigured(res.data.isConfigured)
-    }).catch(() => {})
-  }, [location.pathname])
 
   const handleLogout = () => { logout(); navigate('/login') }
 
@@ -106,25 +99,8 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* User & API Key Status */}
+      {/* User */}
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div
-          onClick={() => navigate('/settings')}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px',
-            borderRadius: 8, background: 'var(--card)', border: '1px solid var(--border)',
-            cursor: 'pointer', transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-bd)'}
-          onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-        >
-          <div style={{ width: 7, height: 7, borderRadius: '50%', background: apiKeyConfigured ? 'var(--success)' : '#fbbf24', flexShrink: 0 }} />
-          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text)', flex: 1 }}>
-            {apiKeyConfigured ? 'API Key Active' : 'Set OpenAI Key'}
-          </span>
-          <Key size={12} style={{ color: 'var(--muted)' }} />
-        </div>
-
         <div style={S.userBox}>
           <div style={S.avatar}>{user?.name?.[0]?.toUpperCase() || 'U'}</div>
           <div style={{ flex: 1, minWidth: 0 }}>

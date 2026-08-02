@@ -26,34 +26,27 @@ public class ChatController {
     }
 
     @PostMapping
-    public ChatResponse chat(
-            @Valid @RequestBody ChatRequest request,
-            @RequestHeader(value = "X-OpenAI-Api-Key", required = false) String customApiKey
-    ) {
+    public ChatResponse chat(@Valid @RequestBody ChatRequest request) {
         return chatService.chat(
                 request.getType(),
                 request.getConversationId(),
                 request.getMessage(),
-                request.getDocumentIds(),
-                customApiKey
+                request.getDocumentIds()
         );
     }
 
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> stream(
             @RequestParam String conversationId,
-            @RequestParam String message,
-            @RequestHeader(value = "X-OpenAI-Api-Key", required = false) String customApiKey) {
-        return chatService.stream(conversationId, message, customApiKey);
+            @RequestParam String message) {
+        return chatService.stream(conversationId, message);
     }
 
     @PostMapping("/explain")
     public ExplainResponse explain(
             @RequestParam String conversationId,
-            @RequestParam String topic,
-            @RequestHeader(value = "X-OpenAI-Api-Key", required = false) String customApiKey
-    ) {
-        return chatService.explain(conversationId, topic, customApiKey);
+            @RequestParam String topic) {
+        return chatService.explain(conversationId, topic);
     }
 
     @GetMapping("/history")

@@ -1,14 +1,13 @@
 package com.knowflow.user.controller;
 
 import com.knowflow.common.util.SecurityUtils;
-import com.knowflow.user.dto.ApiKeyRequest;
-import com.knowflow.user.dto.ApiKeyResponse;
 import com.knowflow.user.entity.User;
-import com.knowflow.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -16,28 +15,16 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class UserController {
 
-    private final UserRepository userRepository;
     private final SecurityUtils securityUtils;
 
-    @GetMapping("/api-key")
-    public ResponseEntity<ApiKeyResponse> getApiKey() {
-        log.info("Fetching API key for current user...");
+    @GetMapping("/me")
+    public ResponseEntity<Map<String, Object>> getCurrentUser() {
         User user = securityUtils.getCurrentUser();
-        String key = user.getApiKey();
-        boolean isConfigured = key != null && !key.isBlank() && !key.contains("sk-dummy");
-        String returnKey = isConfigured ? key : "";
-        log.info("API key status for user {}: configured={}", user.getEmail(), isConfigured);
-        return ResponseEntity.ok(new ApiKeyResponse(returnKey, isConfigured));
-    }
-
-    @PostMapping("/api-key")
-    public ResponseEntity<ApiKeyResponse> updateApiKey(@RequestBody ApiKeyRequest request) {
-        User user = securityUtils.getCurrentUser();
-        String newKey = request != null && request.apiKey() != null ? request.apiKey().trim() : "";
-        user.setApiKey(newKey);
-        userRepository.save(user);
-        log.info("Updated API key for user {}", user.getEmail());
-        boolean isConfigured = !newKey.isBlank() && !newKey.contains("sk-dummy");
-        return ResponseEntity.ok(new ApiKeyResponse(isConfigured ? newKey : "", isConfigured));
+        return ResponseEntity.ok(Map.of(
+                "id", user.getId(),
+                "name", user.getName(),
+                "email", user.getEmail(),
+                "role", user.getRole()
+        ));
     }
 }

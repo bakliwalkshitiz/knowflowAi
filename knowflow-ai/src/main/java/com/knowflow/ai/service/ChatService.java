@@ -15,19 +15,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
-import io.micrometer.observation.ObservationRegistry;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -41,12 +37,6 @@ public class ChatService {
     private final SecurityUtils securityUtils;
     private final VectorStore vectorStore;
     private final DocumentService documentService;
-
-    // BYOK: Cache ChatClient instances per API key to avoid recreating on every request
-    private final ConcurrentHashMap<String, ChatClient> byokClientCache = new ConcurrentHashMap<>();
-
-    // Store tool beans for dynamic ChatClient creation
-    private final Object[] toolBeans;
 
     public ChatService(ChatClient.Builder builder,
                        PromptTemplateFactory promptTemplateFactory,
@@ -70,7 +60,7 @@ public class ChatService {
         this.vectorStore = vectorStore;
         this.documentService = documentService;
 
-        this.toolBeans = new Object[]{
+        Object[] toolBeans = new Object[]{
                 calculatorTool, dateTimeTool, uuidTool,
                 codeFormatterTool, textAnalyzerTool, unitConverterTool, weatherMockTool
         };
@@ -83,78 +73,10 @@ public class ChatService {
                 .build();
     }
 
-    /**
-     * BYOK: Build a ChatClient dynamically using the user's own OpenAI API key.
-     * Uses ONLY official OpenAI Java SDK classes (com.openai.core.ClientOptions & com.openai.client.OpenAIClientImpl).
-     */
-    private ChatClient getOrCreateByokClient(String apiKey) {
-        return byokClientCache.computeIfAbsent(apiKey, key -> {
-            log.info("Creating dynamic BYOK ChatClient for user key hash={}", key.hashCode());
-            try {
-                org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient httpTransport =
-                        org.springframework.ai.openai.http.okhttp.SpringAiOpenAiHttpClient.builder().build();
-
-                com.openai.core.ClientOptions clientOptions = com.openai.core.ClientOptions.builder()
-                        .httpClient(httpTransport)
-                        .apiKey(key)
-                        .baseUrl("https://api.openai.com/v1")
-                        .maxRetries(2)
-                        .build();
-
-                com.openai.client.OpenAIClient openAiClient = new com.openai.client.OpenAIClientImpl(clientOptions);
-
-                ObservationRegistry observationRegistry = ObservationRegistry.NOOP;
-
-                OpenAiChatModel dynamicModel = OpenAiChatModel.builder()
-                        .openAiClient(openAiClient)
-                        .observationRegistry(observationRegistry)
-                        .build();
-
-                return ChatClient.builder(dynamicModel)
-                        .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
-                        .defaultTools(toolBeans)
-                        .build();
-            } catch (Exception ex) {
-                log.error("Failed to construct dynamic BYOK ChatClient: {}", ex.getMessage(), ex);
-                throw new IllegalArgumentException("Failed to construct BYOK ChatClient: " + ex.getMessage(), ex);
-            }
-        });
-    }
-
-    /**
-     * Resolve which ChatClient to use: user's BYOK key or default.
-     */
-    private ChatClient resolveClient(String customApiKey, User user) {
-        String keyToUse = null;
-
-        // Priority 1: Header key sent from browser
-        if (customApiKey != null && !customApiKey.isBlank() && !customApiKey.contains("sk-dummy")) {
-            keyToUse = customApiKey.trim();
-            log.info("Using OpenAI API key from request header for user {}", user.getEmail());
-        }
-        // Priority 2: User's saved key in database
-        else if (user.getApiKey() != null && !user.getApiKey().isBlank() && !user.getApiKey().contains("sk-dummy")) {
-            keyToUse = user.getApiKey().trim();
-            log.info("Using OpenAI API key from database profile for user {}", user.getEmail());
-        }
-
-        if (keyToUse != null && !keyToUse.isBlank()) {
-            return getOrCreateByokClient(keyToUse);
-        }
-
-        log.warn("No valid OpenAI API key found for user {}. Header key={}, DB key={}",
-                user.getEmail(),
-                customApiKey != null ? "PRESENT" : "MISSING",
-                user.getApiKey() != null && !user.getApiKey().isBlank() ? "PRESENT" : "MISSING");
-
-        throw new IllegalArgumentException("No OpenAI API key connected. Please go to Settings and save your OpenAI API key (sk-...).");
-    }
-
     public ChatResponse chat(PromptType type,
                              String conversationId,
                              String message,
-                             List<String> documentIds,
-                             String customApiKey) {
+                             List<String> documentIds) {
 
         User currentUser = securityUtils.getCurrentUser();
         String userIdStr = currentUser.getId().toString();
@@ -218,8 +140,7 @@ public class ChatService {
         }
 
         try {
-            ChatClient targetClient = resolveClient(customApiKey, currentUser);
-            String response = targetClient
+            String response = chatClient
                     .prompt()
                     .system("""
                             You are KnowFlow AI, an intelligent AI knowledge vault assistant for students, developers, and engineers.
@@ -265,10 +186,8 @@ public class ChatService {
         }
     }
 
-    public Flux<String> stream(String conversationId, String message, String customApiKey) {
-        User currentUser = securityUtils.getCurrentUser();
-        ChatClient targetClient = resolveClient(customApiKey, currentUser);
-        return targetClient
+    public Flux<String> stream(String conversationId, String message) {
+        return chatClient
                 .prompt()
                 .system("You are KnowFlow AI.")
                 .user(message)
@@ -277,10 +196,8 @@ public class ChatService {
                 .content();
     }
 
-    public ExplainResponse explain(String conversationId, String topic, String customApiKey) {
-        User currentUser = securityUtils.getCurrentUser();
-        ChatClient targetClient = resolveClient(customApiKey, currentUser);
-        return targetClient
+    public ExplainResponse explain(String conversationId, String topic) {
+        return chatClient
                 .prompt()
                 .system("""
                         You are an expert Java teacher. Explain the given topic.

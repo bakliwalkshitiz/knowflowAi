@@ -34,9 +34,6 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
-    @Column
-    private String apiKey;
-
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
