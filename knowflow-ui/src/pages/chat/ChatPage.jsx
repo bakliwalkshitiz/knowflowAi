@@ -406,7 +406,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (activeId && activeSession?.messages?.length === 0) {
-      chatApi.history(activeId).then(res => {
+      chatApi.conversationHistory(activeId).then(res => {
         if (res?.data && res.data.length > 0) {
           const loadedMsgs = []
           res.data.forEach(h => {
