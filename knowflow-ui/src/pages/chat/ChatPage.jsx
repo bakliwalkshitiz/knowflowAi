@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send, FileText, MessageSquare, BookOpen, HelpCircle, Mic,
   Brain, User, Bot, Plus, X, Upload, CloudUpload,
-  PenSquare, Trash2, Check, Paperclip, Sparkles, AlertCircle, Layers, Loader2
+  PenSquare, Trash2, Check, Paperclip, Sparkles, AlertCircle, Layers, Loader2,
+  PanelRightClose, PanelRightOpen, FolderArchive
 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { chatApi, documentApi, userApi } from '../../api/client'
@@ -373,8 +374,17 @@ export default function ChatPage() {
   const [documents, setDocuments] = useState([])
   const [contextDocs, setContextDocs] = useState([])
   const [uploading, setUploading] = useState(false)
+  const [vaultCollapsed, setVaultCollapsed] = useState(() => localStorage.getItem('kf_vault_collapsed') === 'true')
   const fileInputRef = useRef(null)
   const bottomRef = useRef(null)
+
+  const toggleVaultCollapse = () => {
+    setVaultCollapsed(prev => {
+      const next = !prev
+      localStorage.setItem('kf_vault_collapsed', String(next))
+      return next
+    })
+  }
 
   const activeSession = sessions.find(s => s.id === activeId) || sessions[0]
 
@@ -725,52 +735,105 @@ export default function ChatPage() {
       </div>
 
       {/* ── RIGHT VAULT SIDEBAR ── */}
-      <div style={{
-        width: 220, flexShrink: 0, background: 'var(--surface)',
-        borderLeft: '1px solid var(--border)', padding: 12, display: 'flex', flexDirection: 'column', gap: 12,
-      }}>
-        <h3 style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
-          Vault Documents
-        </h3>
-
+      <motion.div
+        animate={{ width: vaultCollapsed ? 48 : 220 }}
+        transition={{ duration: 0.2, ease: 'easeInOut' }}
+        style={{
+          flexShrink: 0, background: 'var(--surface)',
+          borderLeft: '1px solid var(--border)', padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 12,
+          overflow: 'hidden', position: 'relative',
+        }}
+      >
+        {/* Header & Toggle Button */}
         <div style={{
-          flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6,
-          maxHeight: 'calc(100vh - 80px)', paddingRight: 4,
+          display: 'flex', alignItems: 'center', justifyContent: vaultCollapsed ? 'center' : 'space-between',
+          padding: '2px 4px', gap: 6,
         }}>
-          {documents.length === 0 ? (
-            <p style={{ fontSize: 11, color: 'var(--subtle)', textAlign: 'center', padding: '20px 0', margin: 0 }}>
-              No documents in vault.<br />Click 📎 in the chat box to upload!
-            </p>
-          ) : (
-            documents.map(doc => {
-              const selected = contextDocs.some(d => d.id === doc.id)
-              return (
-                <div
-                  key={doc.id}
-                  onClick={() => toggleDocContext(doc)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-                    borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s',
-                    background: selected ? 'var(--accent-bg)' : 'var(--card)',
-                    border: `1px solid ${selected ? 'var(--accent-bd)' : 'var(--border)'}`,
-                  }}
-                >
-                  <FileText size={13} style={{ color: selected ? 'var(--accent)' : 'var(--muted)', flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--text)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {doc.fileName}
-                    </p>
-                    <p style={{ fontSize: 9, color: 'var(--subtle)', margin: '1px 0 0' }}>
-                      {(doc.fileSize / 1024 / 1024).toFixed(1)} MB
-                    </p>
-                  </div>
-                  {selected && <Check size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
-                </div>
-              )
-            })
+          {!vaultCollapsed && (
+            <h3 style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0, overflow: 'hidden', whiteSpace: 'nowrap' }}>
+              Vault Documents ({documents.length})
+            </h3>
           )}
+
+          <button
+            onClick={toggleVaultCollapse}
+            title={vaultCollapsed ? `Expand Vault Documents (${documents.length} docs)` : 'Minimize Vault'}
+            style={{
+              background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 7,
+              width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: 'var(--muted)', flexShrink: 0, transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--accent-bd)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+          >
+            {vaultCollapsed ? <PanelRightOpen size={14} /> : <PanelRightClose size={14} />}
+          </button>
         </div>
-      </div>
+
+        {/* Collapsed Icon View */}
+        {vaultCollapsed ? (
+          <div
+            onClick={toggleVaultCollapse}
+            title={`Click to expand Vault Documents (${documents.length} docs)`}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+              cursor: 'pointer', marginTop: 12, color: 'var(--muted)',
+            }}
+          >
+            <div style={{ position: 'relative' }}>
+              <FolderArchive size={20} style={{ color: 'var(--accent)' }} />
+              {documents.length > 0 && (
+                <span style={{
+                  position: 'absolute', top: -6, right: -8, background: 'var(--accent)', color: '#fff',
+                  fontSize: 9, fontWeight: 700, borderRadius: '50%', width: 15, height: 15,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {documents.length}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Expanded Scrollable Document List */
+          <div style={{
+            flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6,
+            maxHeight: 'calc(100vh - 80px)', paddingRight: 4,
+          }}>
+            {documents.length === 0 ? (
+              <p style={{ fontSize: 11, color: 'var(--subtle)', textAlign: 'center', padding: '20px 0', margin: 0 }}>
+                No documents in vault.<br />Click 📎 in the chat box to upload!
+              </p>
+            ) : (
+              documents.map(doc => {
+                const selected = contextDocs.some(d => d.id === doc.id)
+                return (
+                  <div
+                    key={doc.id}
+                    onClick={() => toggleDocContext(doc)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+                      borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s',
+                      background: selected ? 'var(--accent-bg)' : 'var(--card)',
+                      border: `1px solid ${selected ? 'var(--accent-bd)' : 'var(--border)'}`,
+                    }}
+                  >
+                    <FileText size={13} style={{ color: selected ? 'var(--accent)' : 'var(--muted)', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 11, fontWeight: 500, color: 'var(--text)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {doc.fileName}
+                      </p>
+                      <p style={{ fontSize: 9, color: 'var(--subtle)', margin: '1px 0 0' }}>
+                        {(doc.fileSize / 1024 / 1024).toFixed(1)} MB
+                      </p>
+                    </div>
+                    {selected && <Check size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
+                  </div>
+                )
+              })
+            )}
+          </div>
+        )}
+      </motion.div>
 
     </div>
   )
