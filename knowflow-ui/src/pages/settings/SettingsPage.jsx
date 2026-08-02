@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Sun, Moon, Check, Loader2, LogOut } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Sun, Moon, Check, Loader2, LogOut, AlertCircle } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useNavigate } from 'react-router-dom'
+import { userApi } from '../../api/client'
 
 const card = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '20px 22px', marginBottom: 16 }
 const fieldLabel = { fontSize: 12, fontWeight: 500, color: 'var(--muted)', marginBottom: 6, display: 'block' }
@@ -24,7 +25,7 @@ function Btn({ children, onClick, variant = 'primary', disabled = false, loading
     opacity: disabled ? 0.45 : 1, transition: 'all 0.15s', ...s,
   }
   const styles = {
-    primary: { background: 'var(--accent)', color: '#fff' },
+    primary: { background: disabled ? 'var(--card-hover)' : 'var(--accent)', color: disabled ? 'var(--muted)' : '#fff' },
     ghost:   { background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' },
     danger:  { background: 'rgba(248,113,113,0.1)', color: 'var(--danger)', border: '1px solid rgba(248,113,113,0.25)' },
     success: { background: 'rgba(52,211,153,0.1)', color: 'var(--success)', border: '1px solid rgba(52,211,153,0.25)' },
@@ -37,21 +38,54 @@ function Btn({ children, onClick, variant = 'primary', disabled = false, loading
 }
 
 export default function SettingsPage() {
-  const { user, logout } = useAuth()
+  const { user, logout, updateUser } = useAuth()
   const { theme, toggle, isDark } = useTheme()
   const navigate = useNavigate()
   const [name, setName] = useState(user?.name || '')
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
 
-  const saveProfile = () => { setSaved(true); setTimeout(() => setSaved(false), 2000) }
+  const isChanged = name.trim() !== '' && name.trim() !== (user?.name || '')
+
+  const saveProfile = async () => {
+    if (!isChanged || saving) return
+    setSaving(true)
+    setError('')
+    try {
+      const res = await userApi.updateProfile({ name: name.trim() })
+      if (res?.data) {
+        const updatedName = res.data.name || name.trim()
+        updateUser({ name: updatedName })
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2500)
+      }
+    } catch (err) {
+      console.error('Failed to save profile:', err)
+      setError('Failed to save changes. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleLogout = () => { logout(); navigate('/login') }
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 620, margin: '0 auto' }}>
+    <div style={{ padding: '28px 24px', maxWidth: 620, margin: '0 auto', width: '100%' }}>
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Settings</h1>
         <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>Manage your account and preferences</p>
       </motion.div>
+
+      {/* Alerts */}
+      <AnimatePresence>
+        {error && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            style={{ marginBottom: 14, padding: '12px 16px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 10, fontSize: 13, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <AlertCircle size={14} /> {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Profile */}
       <div style={card}>
@@ -61,9 +95,9 @@ export default function SettingsPage() {
           <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--accent-bg)', border: '1px solid var(--accent-bd)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
             {user?.name?.[0]?.toUpperCase() || 'U'}
           </div>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', margin: '0 0 2px' }}>{user?.name}</p>
-            <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>{user?.email}</p>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</p>
+            <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</p>
           </div>
         </div>
         <div style={{ marginBottom: 12 }}>
@@ -76,7 +110,7 @@ export default function SettingsPage() {
           <label style={fieldLabel}>Email</label>
           <input value={user?.email || ''} disabled style={{ ...input, opacity: 0.5, cursor: 'not-allowed' }} />
         </div>
-        <Btn onClick={saveProfile}>
+        <Btn onClick={saveProfile} disabled={!isChanged || saving} loading={saving}>
           {saved ? <><Check size={13} /> Saved!</> : 'Save Changes'}
         </Btn>
       </div>
@@ -102,7 +136,7 @@ export default function SettingsPage() {
           <button onClick={toggle} style={{
             width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer',
             background: isDark ? 'var(--accent)' : 'var(--border)',
-            position: 'relative', padding: 0, transition: 'background 0.25s',
+            position: 'relative', padding: 0, transition: 'background 0.25s', flexShrink: 0,
           }}>
             <motion.div
               animate={{ x: isDark ? 22 : 2 }}

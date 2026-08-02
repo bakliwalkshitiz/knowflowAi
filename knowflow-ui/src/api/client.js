@@ -48,6 +48,7 @@ export const chatApi = {
 
 export const userApi = {
   getMe: () => api.get('/user/me'),
+  updateProfile: (data) => api.put('/user/profile', data),
 }
 
 export const ragApi = {

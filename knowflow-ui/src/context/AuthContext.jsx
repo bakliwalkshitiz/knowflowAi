@@ -18,6 +18,14 @@ export function AuthProvider({ children }) {
     localStorage.setItem('kf_token', jwtToken)
   }
 
+  const updateUser = (updatedData) => {
+    setUser(prev => {
+      const next = { ...prev, ...updatedData }
+      localStorage.setItem('kf_user', JSON.stringify(next))
+      return next
+    })
+  }
+
   const logout = () => {
     setUser(null)
     setToken(null)
@@ -28,7 +36,7 @@ export function AuthProvider({ children }) {
   const isAuthenticated = !!token && !!user
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated }}>
+    <AuthContext.Provider value={{ user, token, login, logout, updateUser, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   )
