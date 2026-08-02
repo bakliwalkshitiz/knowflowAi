@@ -176,6 +176,10 @@ public class ChatService {
 
                             3. DOCUMENT SCOPE:
                                - If 'STRICT DOCUMENT CONTEXT FROM ATTACHED FILES' is provided, base document answers strictly on that content.
+
+                            4. NO HEADER PREFIXES OR INTRODUCTORY META TAGS:
+                               - Start your response directly with the requested information.
+                               - Do NOT include any introductory meta tags, prefixes, or disclaimers (such as '[Applied Mode: ...]').
                             """)
                     .user(finalPrompt)
                     .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))

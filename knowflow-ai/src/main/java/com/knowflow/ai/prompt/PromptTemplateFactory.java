@@ -14,11 +14,10 @@ public class PromptTemplateFactory {
 
         if (type == PromptType.SYSTEM_DESIGN) {
             return """
-                    [Applied Mode: SYSTEM_DESIGN]
                     User Request / Topic: %s
 
                     INSTRUCTIONS FOR SYSTEM DESIGN (LLD & HLD):
-                    Generate a complete, production-grade System Design document containing both LLD and HLD:
+                    Generate a complete, production-grade System Design document containing both LLD and HLD without adding any mode headers or metadata prefixes:
 
                     ### 1. Low-Level Design (LLD)
                     - Provide a valid Mermaid UML Class Diagram inside a ```mermaid classDiagram ``` code block.
@@ -41,10 +40,9 @@ public class PromptTemplateFactory {
         String modeName = type.name();
 
         return """
-                [Applied Mode: %s]
-                User Request / Instruction: %s
+                User Request: %s
 
-                Instruction for AI: Perform the %s task following the user's exact request/constraints above. Rely strictly on the attached document context.
-                """.formatted(modeName, message, modeName);
+                AI Instruction: Perform the %s task directly following the user's request. Do NOT print any mode headers, prefixes, or system tag lines (such as '[Applied Mode: ...]'), output the answer cleanly.
+                """.formatted(message, modeName);
     }
 }
