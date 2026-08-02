@@ -19,7 +19,7 @@ class KnowflowAiApplicationTests {
 				false,
 				true,
 				"openai",
-				null,
+				java.time.Duration.ofSeconds(60),
 				2,
 				null,
 				java.util.Map.of(),
