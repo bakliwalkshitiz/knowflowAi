@@ -41,8 +41,6 @@ public class ChatService {
     private final VectorStore vectorStore;
     private final DocumentService documentService;
 
-    private final ObservationRegistry observationRegistry;
-
     // BYOK: Cache ChatClient instances per API key to avoid recreating on every request
     private final ConcurrentHashMap<String, ChatClient> byokClientCache = new ConcurrentHashMap<>();
 
@@ -62,8 +60,7 @@ public class ChatService {
                        ChatHistoryRepository chatHistoryRepository,
                        SecurityUtils securityUtils,
                        VectorStore vectorStore,
-                       DocumentService documentService,
-                       ObservationRegistry observationRegistry) {
+                       DocumentService documentService) {
 
         this.promptTemplateFactory = promptTemplateFactory;
         this.chatMemory = chatMemory;
@@ -71,7 +68,6 @@ public class ChatService {
         this.securityUtils = securityUtils;
         this.vectorStore = vectorStore;
         this.documentService = documentService;
-        this.observationRegistry = observationRegistry;
 
         this.toolBeans = new Object[]{
                 calculatorTool, dateTimeTool, uuidTool,
@@ -93,6 +89,7 @@ public class ChatService {
         return byokClientCache.computeIfAbsent(apiKey, key -> {
             log.info("Creating dynamic BYOK ChatClient for user key hash={}", key.hashCode());
             try {
+                ObservationRegistry observationRegistry = ObservationRegistry.NOOP;
                 com.openai.client.OpenAIClient openAiClient = org.springframework.ai.openai.setup.OpenAiSetup.setupSyncClient(
                         null,
                         key,

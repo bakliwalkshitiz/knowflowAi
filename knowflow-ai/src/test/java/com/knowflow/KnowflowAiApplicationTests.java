@@ -27,7 +27,7 @@ class KnowflowAiApplicationTests {
 				null,
 				java.util.List.of()
 		);
-		io.micrometer.observation.ObservationRegistry observationRegistry = io.micrometer.observation.ObservationRegistry.create();
+		io.micrometer.observation.ObservationRegistry observationRegistry = io.micrometer.observation.ObservationRegistry.NOOP;
 		org.springframework.ai.openai.OpenAiChatModel model = org.springframework.ai.openai.OpenAiChatModel.builder()
 				.openAiClient(openAiClient)
 				.observationRegistry(observationRegistry)
