@@ -88,7 +88,8 @@ public class ChatService {
         return byokClientCache.computeIfAbsent(apiKey, key -> {
             log.info("Creating dynamic BYOK ChatClient for user key hash={}", key.hashCode());
             try {
-                com.openai.core.ClientOptions clientOptions = com.openai.core.ClientOptions.builder()
+                com.openai.core.ClientOptions clientOptions = com.openai.core.ClientOptions.fromEnv()
+                        .toBuilder()
                         .apiKey(key)
                         .build();
                 com.openai.client.OpenAIClient openAiClient = new com.openai.client.OpenAIClientImpl(clientOptions);
