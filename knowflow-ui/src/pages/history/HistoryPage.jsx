@@ -71,44 +71,38 @@ export default function HistoryPage() {
     }
   })
 
-  // 2. Merge backend history items into matching sessions
+  // 2. Merge backend history items into matching sessions and attach promptType
   safeBackendHistory.forEach(item => {
     if (!item) return
-    const convId = item.conversationId
-    if (convId && sessionMap.has(convId)) {
+    const convId = item.conversationId || 'default'
+    if (sessionMap.has(convId)) {
       const sess = sessionMap.get(convId)
-      if (!sess.messages.some(m => m.content === item.prompt || m.content === item.response)) {
-        if (item.prompt) sess.messages.push({ role: 'user', content: item.prompt, time: item.createdAt, promptType: item.promptType })
-        if (item.response) sess.messages.push({ role: 'ai', content: item.response, time: item.createdAt, promptType: item.promptType })
+      let matched = false
+      sess.messages.forEach(m => {
+        if (m.content === item.prompt || m.content === item.response) {
+          m.promptType = item.promptType || 'CHAT'
+          matched = true
+        }
+      })
+      if (!matched) {
+        if (item.prompt) sess.messages.push({ role: 'user', content: item.prompt, time: item.createdAt, promptType: item.promptType || 'CHAT' })
+        if (item.response) sess.messages.push({ role: 'ai', content: item.response, time: item.createdAt, promptType: item.promptType || 'CHAT' })
       }
       if (item.createdAt && new Date(item.createdAt) > new Date(sess.lastAt)) {
         sess.lastAt = item.createdAt
       }
+    } else {
+      sessionMap.set(convId, {
+        id: convId,
+        title: item.prompt?.slice(0, 30) || 'Chat Session',
+        messages: [
+          { role: 'user', content: item.prompt, time: item.createdAt, promptType: item.promptType || 'CHAT' },
+          { role: 'ai', content: item.response, time: item.createdAt, promptType: item.promptType || 'CHAT' },
+        ],
+        lastAt: item.createdAt || new Date().toISOString(),
+      })
     }
   })
-
-  // 3. Fallback: if localSessions is empty, group backend history by conversationId
-  if (localSessions.length === 0 && safeBackendHistory.length > 0) {
-    safeBackendHistory.forEach(item => {
-      if (!item) return
-      const convId = item.conversationId || 'default'
-      if (!sessionMap.has(convId)) {
-        sessionMap.set(convId, {
-          id: convId,
-          title: item.prompt?.slice(0, 30) || 'Chat Session',
-          messages: [
-            { role: 'user', content: item.prompt, time: item.createdAt, promptType: item.promptType },
-            { role: 'ai', content: item.response, time: item.createdAt, promptType: item.promptType },
-          ],
-          lastAt: item.createdAt || new Date().toISOString(),
-        })
-      } else {
-        const sess = sessionMap.get(convId)
-        sess.messages.push({ role: 'user', content: item.prompt, time: item.createdAt, promptType: item.promptType })
-        sess.messages.push({ role: 'ai', content: item.response, time: item.createdAt, promptType: item.promptType })
-      }
-    })
-  }
 
   // Convert to sorted list by last activity date
   const sessions = Array.from(sessionMap.values()).sort(

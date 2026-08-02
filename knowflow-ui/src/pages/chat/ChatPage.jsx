@@ -529,6 +529,7 @@ export default function ChatPage() {
       role: 'user',
       content: promptToUse,
       attachedDocs: currentAttachedDocs,
+      promptType: mode,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
 
@@ -561,6 +562,7 @@ export default function ChatPage() {
       const botMsg = {
         role: 'assistant',
         content: res.data?.response || 'No response received.',
+        promptType: mode,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }
 
