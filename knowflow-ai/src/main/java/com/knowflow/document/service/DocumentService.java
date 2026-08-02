@@ -129,15 +129,17 @@ public class DocumentService {
             chunk.getMetadata().put("uploadedAt", uploadedAt.toString());
         }
 
-        // Store embeddings safely (pure BYOK friendly)
-        try {
-            vectorStore.add(chunks);
-            log.info("Stored {} chunks in PGVector for user '{}', document '{}' (id={})",
-                    chunks.size(), currentUser.getEmail(), originalFilename, documentId);
-        } catch (Exception ex) {
-            log.warn("Vector store indexing skipped for document '{}' (id={}): {}",
-                    originalFilename, documentId, ex.getMessage());
-        }
+        // Store embeddings asynchronously so upload HTTP response returns instantly (<1 second)
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                vectorStore.add(chunks);
+                log.info("Stored {} chunks in PGVector for user '{}', document '{}' (id={})",
+                        chunks.size(), currentUser.getEmail(), originalFilename, documentId);
+            } catch (Exception ex) {
+                log.warn("Async vector store indexing skipped for document '{}' (id={}): {}",
+                        originalFilename, documentId, ex.getMessage());
+            }
+        });
 
         return new UploadResponse(
                 document.getId().toString(),
