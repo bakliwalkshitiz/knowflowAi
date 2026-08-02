@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Upload, FileText, Search, Trash2, Download,
-  Pencil, X, Check, CloudUpload, AlertCircle
+  Pencil, X, Check, CloudUpload, AlertCircle, Loader2
 } from 'lucide-react'
 import { documentApi } from '../../api/client'
 
@@ -16,36 +16,47 @@ function DropZone({ onUpload, uploading }) {
 
   const handleDrop = (e) => {
     e.preventDefault(); setDragging(false)
+    if (uploading) return
     const f = e.dataTransfer.files[0]
     if (f) onUpload(f)
   }
 
   return (
     <motion.div
-      onDragOver={e => { e.preventDefault(); setDragging(true) }}
+      onDragOver={e => { e.preventDefault(); if (!uploading) setDragging(true) }}
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
-      onClick={() => fileRef.current?.click()}
+      onClick={() => !uploading && fileRef.current?.click()}
       animate={{ borderColor: dragging ? 'var(--accent)' : 'var(--border)', background: dragging ? 'var(--accent-bg)' : 'transparent' }}
       transition={{ duration: 0.15 }}
       style={{
         border: '2px dashed var(--border)', borderRadius: 14, padding: '36px 20px',
-        textAlign: 'center', cursor: 'pointer',
+        textAlign: 'center', cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.8 : 1,
       }}
     >
       <input ref={fileRef} type="file" style={{ display: 'none' }} accept=".pdf,.txt,.doc,.docx"
-        onChange={e => e.target.files[0] && onUpload(e.target.files[0])} />
-      <motion.div
-        animate={uploading ? { rotate: 360 } : { rotate: 0 }}
-        transition={uploading ? { duration: 1, repeat: Infinity, ease: 'linear' } : {}}
-        style={{ margin: '0 auto 12px' }}
-      >
-        <CloudUpload size={28} style={{ color: 'var(--accent)' }} />
-      </motion.div>
-      <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', margin: '0 0 4px' }}>
-        {uploading ? 'Uploading & embedding…' : 'Drop your file here or click to browse'}
+        disabled={uploading}
+        onChange={e => {
+          if (e.target.files[0] && !uploading) {
+            onUpload(e.target.files[0])
+            e.target.value = ''
+          }
+        }} />
+      
+      <div style={{ margin: '0 auto 12px', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {uploading ? (
+          <Loader2 size={32} style={{ color: 'var(--accent)', animation: 'spin 0.9s linear infinite' }} />
+        ) : (
+          <CloudUpload size={32} style={{ color: 'var(--accent)' }} />
+        )}
+      </div>
+
+      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', margin: '0 0 4px' }}>
+        {uploading ? 'Uploading document, please wait...' : 'Drop your file here or click to browse'}
       </p>
-      <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>PDF, TXT, DOC, DOCX</p>
+      <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
+        {uploading ? 'Parsing content & generating vector embeddings' : 'PDF, TXT, DOC, DOCX'}
+      </p>
     </motion.div>
   )
 }
@@ -77,8 +88,15 @@ function DocCard({ doc, onDelete, onRename, onDownload }) {
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
       style={{ ...css.card, padding: 16, position: 'relative' }}
-      onMouseEnter={e => e.currentTarget.querySelector('.doc-menu-btn').style.opacity = 1}
-      onMouseLeave={e => { e.currentTarget.querySelector('.doc-menu-btn').style.opacity = 0; setMenuOpen(false) }}
+      onMouseEnter={e => {
+        const btn = e.currentTarget.querySelector('.doc-menu-btn');
+        if (btn) btn.style.opacity = 1;
+      }}
+      onMouseLeave={e => {
+        const btn = e.currentTarget.querySelector('.doc-menu-btn');
+        if (btn) btn.style.opacity = 0;
+        setMenuOpen(false);
+      }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
         <div style={{ padding: '2px 7px', borderRadius: 6, background: ec.bg, fontSize: 10, fontWeight: 700, color: ec.color, flexShrink: 0 }}>
@@ -140,9 +158,9 @@ function DocCard({ doc, onDelete, onRename, onDownload }) {
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
-        <span>{(doc.fileSize / 1024).toFixed(1)} KB</span>
-        <span>{doc.chunkCount} chunks</span>
-        <span>{new Date(doc.uploadedAt).toLocaleDateString()}</span>
+        <span>{doc.fileSize ? (doc.fileSize / 1024).toFixed(1) : 0} KB</span>
+        <span>{doc.chunkCount || 0} chunks</span>
+        <span>{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : ''}</span>
       </div>
     </motion.div>
   )
@@ -181,17 +199,17 @@ export default function DocumentsPage() {
     try {
       const fd = new FormData()
       fd.append('file', file)
-      // ⚠️ Do NOT set Content-Type — Axios + browser handle multipart boundary automatically
       await documentApi.upload(fd)
       setSuccess(`"${file.name}" uploaded and embedded successfully!`)
       setTimeout(() => setSuccess(''), 5000)
       fetchDocs()
     } catch (err) {
-      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Upload failed'
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Upload failed. Please try again.'
       setError(msg)
-      setTimeout(() => setError(''), 5000)
+      setTimeout(() => setError(''), 6000)
+    } finally {
+      setUploading(false)
     }
-    setUploading(false)
   }
 
   const handleDelete = async (id) => {

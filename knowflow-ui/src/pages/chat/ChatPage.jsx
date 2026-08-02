@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send, FileText, MessageSquare, BookOpen, HelpCircle, Mic,
   Brain, User, Bot, Plus, X, Upload, CloudUpload,
-  PenSquare, Trash2, Check, Paperclip, Sparkles, AlertCircle, Layers
+  PenSquare, Trash2, Check, Paperclip, Sparkles, AlertCircle, Layers, Loader2
 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { chatApi, documentApi, userApi } from '../../api/client'
@@ -449,7 +449,9 @@ export default function ChatPage() {
     if (!file) return
     setUploading(true)
     try {
-      const res = await documentApi.upload(file)
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await documentApi.upload(fd)
       if (res?.data) {
         const norm = normalizeDoc(res.data)
         if (norm && norm.id) {
@@ -459,6 +461,8 @@ export default function ChatPage() {
       }
     } catch (err) {
       console.error('File upload failed:', err)
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'File upload failed'
+      alert(`⚠️ ${msg}`)
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -702,14 +706,18 @@ export default function ChatPage() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                title="Attach Document"
+                title={uploading ? 'Uploading document...' : 'Attach Document'}
                 style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: uploading ? 'var(--subtle)' : 'var(--muted)',
+                  background: 'none', border: 'none', cursor: uploading ? 'not-allowed' : 'pointer',
+                  color: uploading ? 'var(--accent)' : 'var(--muted)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4,
                 }}
               >
-                <Paperclip size={18} />
+                {uploading ? (
+                  <Loader2 size={18} style={{ animation: 'spin 0.9s linear infinite' }} />
+                ) : (
+                  <Paperclip size={18} />
+                )}
               </button>
 
               <input
