@@ -17,6 +17,42 @@ const MODE_BADGES = {
   CHAT:          { label: 'General Chat',  color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.12)', border: 'rgba(148, 163, 184, 0.3)' },
 }
 
+export function getEffectivePromptType(item) {
+  if (item?.promptType && item.promptType !== 'CHAT') {
+    return item.promptType
+  }
+  const text = ((item?.prompt || item?.content || '') + ' ' + (item?.response || '')).toLowerCase()
+  if (text.includes('mermaid') || text.includes('classdiagram') || text.includes('sequencediagram') || text.includes('erdiagram') || text.includes('system design') || text.includes('lld') || text.includes('hld')) {
+    return 'SYSTEM_DESIGN'
+  }
+  if (text.includes('summar') || text.includes('key takeaway')) {
+    return 'SUMMARY'
+  }
+  if (text.includes('quiz') || text.includes('mcq') || text.includes('multiple choice')) {
+    return 'QUIZ'
+  }
+  if (text.includes('flashcard')) {
+    return 'FLASHCARD'
+  }
+  if (text.includes('interview')) {
+    return 'INTERVIEW'
+  }
+  if (text.includes('mind map') || text.includes('mindmap')) {
+    return 'MINDMAP'
+  }
+  return item?.promptType || 'CHAT'
+}
+
+export function parseIsoDate(s) {
+  if (!s) return new Date()
+  let str = String(s).trim()
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(str) && !str.endsWith('Z') && !str.includes('+') && !str.slice(10).includes('-')) {
+    str += 'Z'
+  }
+  const d = new Date(str)
+  return isNaN(d.getTime()) ? new Date() : d
+}
+
 export default function HistoryPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -75,20 +111,22 @@ export default function HistoryPage() {
   safeBackendHistory.forEach(item => {
     if (!item) return
     const convId = item.conversationId || 'default'
+    const itemMode = getEffectivePromptType(item)
+
     if (sessionMap.has(convId)) {
       const sess = sessionMap.get(convId)
       let matched = false
       sess.messages.forEach(m => {
         if (m.content === item.prompt || m.content === item.response) {
-          m.promptType = item.promptType || 'CHAT'
+          m.promptType = itemMode
           matched = true
         }
       })
       if (!matched) {
-        if (item.prompt) sess.messages.push({ role: 'user', content: item.prompt, time: item.createdAt, promptType: item.promptType || 'CHAT' })
-        if (item.response) sess.messages.push({ role: 'ai', content: item.response, time: item.createdAt, promptType: item.promptType || 'CHAT' })
+        if (item.prompt) sess.messages.push({ role: 'user', content: item.prompt, time: item.createdAt, promptType: itemMode })
+        if (item.response) sess.messages.push({ role: 'ai', content: item.response, time: item.createdAt, promptType: itemMode })
       }
-      if (item.createdAt && new Date(item.createdAt) > new Date(sess.lastAt)) {
+      if (item.createdAt && new Date(parseIsoDate(item.createdAt)) > new Date(parseIsoDate(sess.lastAt))) {
         sess.lastAt = item.createdAt
       }
     } else {
@@ -96,8 +134,8 @@ export default function HistoryPage() {
         id: convId,
         title: item.prompt?.slice(0, 30) || 'Chat Session',
         messages: [
-          { role: 'user', content: item.prompt, time: item.createdAt, promptType: item.promptType || 'CHAT' },
-          { role: 'ai', content: item.response, time: item.createdAt, promptType: item.promptType || 'CHAT' },
+          { role: 'user', content: item.prompt, time: item.createdAt, promptType: itemMode },
+          { role: 'ai', content: item.response, time: item.createdAt, promptType: itemMode },
         ],
         lastAt: item.createdAt || new Date().toISOString(),
       })
@@ -106,10 +144,10 @@ export default function HistoryPage() {
 
   // Convert to sorted list by last activity date
   const sessions = Array.from(sessionMap.values()).sort(
-    (a, b) => new Date(b.lastAt) - new Date(a.lastAt)
+    (a, b) => new Date(parseIsoDate(b.lastAt)) - new Date(parseIsoDate(a.lastAt))
   )
 
-  // Filter session list by searchSession and selectedMode
+  // Filter session list by searchSession and selectedMode using getEffectivePromptType
   const filteredSessions = sessions.filter(s => {
     const matchesSearch = !searchSession.trim() || (
       s.title.toLowerCase().includes(searchSession.toLowerCase()) ||
@@ -117,7 +155,7 @@ export default function HistoryPage() {
     )
 
     const matchesMode = selectedMode === 'ALL' || (
-      Array.isArray(s.messages) && s.messages.some(m => (m.promptType || 'CHAT') === selectedMode)
+      Array.isArray(s.messages) && s.messages.some(m => getEffectivePromptType(m) === selectedMode)
     )
 
     return matchesSearch && matchesMode
@@ -134,12 +172,13 @@ export default function HistoryPage() {
       if (safeMsgs[i].role === 'user') {
         const promptMsg = safeMsgs[i]
         const aiMsg = safeMsgs[i + 1]?.role === 'ai' ? safeMsgs[i + 1] : null
+        const pairMode = getEffectivePromptType(promptMsg) || getEffectivePromptType(aiMsg)
         pairs.push({
           id: i,
           prompt: promptMsg.content || '',
           response: aiMsg ? aiMsg.content : '',
           time: promptMsg.time || aiMsg?.time || '',
-          promptType: promptMsg.promptType || aiMsg?.promptType || 'CHAT',
+          promptType: pairMode,
         })
         if (aiMsg) i++
       } else if (safeMsgs[i].role === 'ai' && (i === 0 || safeMsgs[i - 1].role !== 'user')) {
@@ -148,7 +187,7 @@ export default function HistoryPage() {
           prompt: 'AI Response',
           response: safeMsgs[i].content || '',
           time: safeMsgs[i].time || '',
-          promptType: safeMsgs[i].promptType || 'CHAT',
+          promptType: getEffectivePromptType(safeMsgs[i]),
         })
       }
     }
@@ -163,16 +202,17 @@ export default function HistoryPage() {
       p.prompt.toLowerCase().includes(searchPrompt.toLowerCase()) ||
       p.response.toLowerCase().includes(searchPrompt.toLowerCase())
     )
-    const matchesMode = selectedMode === 'ALL' || (p.promptType || 'CHAT') === selectedMode
+    const matchesMode = selectedMode === 'ALL' || getEffectivePromptType(p) === selectedMode
     return matchesSearch && matchesMode
   })
 
   const formatDate = (s) => {
     if (!s) return 'Recently'
-    const d = new Date(s), now = new Date(), diff = now - d
-    if (isNaN(d.getTime())) return 'Recently'
-    if (diff < 60000)    return 'Just now'
-    if (diff < 3600000)  return `${Math.floor(diff / 60000)}m ago`
+    const d = parseIsoDate(s)
+    const now = new Date()
+    const diff = now - d
+    if (diff < 0 || diff < 60000) return 'Just now'
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
   }
@@ -286,7 +326,7 @@ export default function HistoryPage() {
               {filteredSessions.map((session, i) => {
                 const pairs = getExchangePairs(session.messages)
                 const lastMsgSnippet = pairs[pairs.length - 1]?.prompt || session.messages?.[session.messages.length - 1]?.content || 'Empty chat session'
-                const pType = pairs[pairs.length - 1]?.promptType || 'CHAT'
+                const pType = getEffectivePromptType(pairs[pairs.length - 1]) || 'CHAT'
                 const badge = MODE_BADGES[pType] || MODE_BADGES.CHAT
 
                 return (
@@ -418,7 +458,7 @@ export default function HistoryPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {filteredPairs.map((pair, idx) => {
-                const badge = MODE_BADGES[pair.promptType] || MODE_BADGES.CHAT
+                const badge = MODE_BADGES[getEffectivePromptType(pair)] || MODE_BADGES.CHAT
                 return (
                   <motion.div
                     key={idx}

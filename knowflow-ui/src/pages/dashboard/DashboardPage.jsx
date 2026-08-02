@@ -21,6 +21,42 @@ const MODE_BADGES = {
   CHAT:          { label: 'General Chat',  color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.12)', border: 'rgba(148, 163, 184, 0.3)' },
 }
 
+export function getEffectivePromptType(item) {
+  if (item?.promptType && item.promptType !== 'CHAT') {
+    return item.promptType
+  }
+  const text = ((item?.prompt || item?.content || '') + ' ' + (item?.response || '')).toLowerCase()
+  if (text.includes('mermaid') || text.includes('classdiagram') || text.includes('sequencediagram') || text.includes('erdiagram') || text.includes('system design') || text.includes('lld') || text.includes('hld')) {
+    return 'SYSTEM_DESIGN'
+  }
+  if (text.includes('summar') || text.includes('key takeaway')) {
+    return 'SUMMARY'
+  }
+  if (text.includes('quiz') || text.includes('mcq') || text.includes('multiple choice')) {
+    return 'QUIZ'
+  }
+  if (text.includes('flashcard')) {
+    return 'FLASHCARD'
+  }
+  if (text.includes('interview')) {
+    return 'INTERVIEW'
+  }
+  if (text.includes('mind map') || text.includes('mindmap')) {
+    return 'MINDMAP'
+  }
+  return item?.promptType || 'CHAT'
+}
+
+export function parseIsoDate(s) {
+  if (!s) return new Date()
+  let str = String(s).trim()
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(str) && !str.endsWith('Z') && !str.includes('+') && !str.slice(10).includes('-')) {
+    str += 'Z'
+  }
+  const d = new Date(str)
+  return isNaN(d.getTime()) ? new Date() : d
+}
+
 /* ────────────────── STAT CARD COMPONENT ────────────────── */
 function MetricCard({ icon: Icon, label, value, subtext, color, delay = 0 }) {
   return (
@@ -113,9 +149,11 @@ export default function DashboardPage() {
 
   const formatDate = (s) => {
     if (!s) return 'Recently'
-    const d = new Date(s), now = new Date(), diff = now - d
-    if (diff < 60000)    return 'Just now'
-    if (diff < 3600000)  return `${Math.floor(diff / 60000)}m ago`
+    const d = parseIsoDate(s)
+    const now = new Date()
+    const diff = now - d
+    if (diff < 0 || diff < 60000) return 'Just now'
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
   }
@@ -126,14 +164,14 @@ export default function DashboardPage() {
   const totalChats = chatHistory.length
   const totalMB = stats?.totalFileSize ? (stats.totalFileSize / 1024 / 1024).toFixed(2) : (recentDocs.reduce((acc, d) => acc + (d.fileSize || 0), 0) / 1024 / 1024).toFixed(2)
 
-  // Calculate real mode execution counts from chatHistory promptType field
-  const summaryCount       = chatHistory.filter(h => h.promptType === 'SUMMARY').length
-  const systemDesignCount  = chatHistory.filter(h => h.promptType === 'SYSTEM_DESIGN').length
-  const flashcardCount     = chatHistory.filter(h => h.promptType === 'FLASHCARD').length
-  const quizCount          = chatHistory.filter(h => h.promptType === 'QUIZ').length
-  const interviewCount     = chatHistory.filter(h => h.promptType === 'INTERVIEW').length
-  const mindmapCount       = chatHistory.filter(h => h.promptType === 'MINDMAP').length
-  const generalChatCount   = chatHistory.filter(h => h.promptType === 'CHAT' || !h.promptType).length
+  // Calculate real mode execution counts using getEffectivePromptType
+  const summaryCount       = chatHistory.filter(h => getEffectivePromptType(h) === 'SUMMARY').length
+  const systemDesignCount  = chatHistory.filter(h => getEffectivePromptType(h) === 'SYSTEM_DESIGN').length
+  const flashcardCount     = chatHistory.filter(h => getEffectivePromptType(h) === 'FLASHCARD').length
+  const quizCount          = chatHistory.filter(h => getEffectivePromptType(h) === 'QUIZ').length
+  const interviewCount     = chatHistory.filter(h => getEffectivePromptType(h) === 'INTERVIEW').length
+  const mindmapCount       = chatHistory.filter(h => getEffectivePromptType(h) === 'MINDMAP').length
+  const generalChatCount   = chatHistory.filter(h => getEffectivePromptType(h) === 'CHAT').length
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: 1150, margin: '0 auto' }}>
@@ -203,7 +241,7 @@ export default function DashboardPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {chatHistory.slice(0, 7).map((item, i) => {
-                  const pType = item.promptType || 'CHAT'
+                  const pType = getEffectivePromptType(item)
                   const badge = MODE_BADGES[pType] || MODE_BADGES.CHAT
 
                   return (
