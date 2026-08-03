@@ -12,6 +12,26 @@ public class PromptTemplateFactory {
             return message;
         }
 
+        if (type == PromptType.FLASHCARD) {
+            return """
+                    User Request / Topic: %s
+
+                    INSTRUCTIONS FOR FLASHCARDS:
+                    Generate 5 to 10 comprehensive flashcards based on the user request / provided text.
+                    You MUST format your entire response as a single valid JSON array inside a ```json ``` block with objects containing "id", "front", and "back":
+                    ```json
+                    [
+                      {
+                        "id": 1,
+                        "front": "What is ...?",
+                        "back": "Detailed answer / explanation..."
+                      }
+                    ]
+                    ```
+                    Do not print any headers, disclaimers, or metadata outside the JSON block.
+                    """.formatted(message);
+        }
+
         if (type == PromptType.SYSTEM_DESIGN) {
             return """
                     User Request / Topic: %s
