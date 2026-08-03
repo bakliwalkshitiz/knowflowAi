@@ -13,10 +13,14 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    const status = err.response?.status
+    if (status === 401 || status === 403) {
+      console.warn('Session expired or unauthorized. Redirecting to login...')
       localStorage.removeItem('kf_token')
       localStorage.removeItem('kf_user')
-      window.location.href = '/login'
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login?expired=true'
+      }
     }
     return Promise.reject(err)
   }

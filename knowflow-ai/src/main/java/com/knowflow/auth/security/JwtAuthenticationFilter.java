@@ -1,5 +1,6 @@
 package com.knowflow.auth.security;
 
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -61,6 +62,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             userEmail = jwtService.extractUsername(jwt);
+        } catch (ExpiredJwtException e) {
+            log.warn("JWT token expired for request [{}]: {}", request.getRequestURI(), e.getMessage());
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"JWT Token Expired. Please log in again.\"}");
+            return;
         } catch (Exception e) {
             log.warn("JWT token extraction failed for request [{}]: {}", request.getRequestURI(), e.getMessage());
             filterChain.doFilter(request, response);
