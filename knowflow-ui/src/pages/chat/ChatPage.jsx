@@ -766,91 +766,11 @@ export default function ChatPage() {
     }
   }
 
+  const activeModeObj = MODES.find(m => m.key === mode) || MODES[0]
+  const displayTitle = mode === 'CHAT' ? (activeSession?.name || 'General Chat') : activeModeObj.label
+
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 56px)', background: 'var(--bg)', overflow: 'hidden' }}>
-
-      {/* ── LEFT SIDEBAR: CHAT SESSIONS ── */}
-      <div style={{
-        width: sidebarCollapsed ? 56 : 240, transition: 'width 0.2s ease', flexShrink: 0,
-        background: 'var(--surface)', borderRight: '1px solid var(--border)',
-        display: 'flex', flexDirection: 'column', padding: '12px 10px', boxSizing: 'border-box',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'space-between', marginBottom: 12 }}>
-          {!sidebarCollapsed && (
-            <button
-              onClick={createNewChat}
-              style={{
-                flex: 1, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
-                borderRadius: 8, border: '1px solid var(--border)', background: 'var(--accent-bg)',
-                color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
-              }}
-            >
-              <Plus size={14} /> New Chat
-            </button>
-          )}
-
-          <button
-            onClick={toggleSidebarCollapse}
-            title={sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-            style={{
-              background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: 6,
-              cursor: 'pointer', color: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              marginLeft: sidebarCollapsed ? 0 : 6,
-            }}
-          >
-            {sidebarCollapsed ? <PanelRightOpen size={15} /> : <PanelRightClose size={15} />}
-          </button>
-        </div>
-
-        {sidebarCollapsed && (
-          <button
-            onClick={createNewChat}
-            title="New Chat"
-            style={{
-              width: 36, height: 36, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--accent-bg)',
-              color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', margin: '0 auto 12px',
-            }}
-          >
-            <Plus size={16} />
-          </button>
-        )}
-
-        {!sidebarCollapsed && (
-          <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--subtle)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '4px 6px 8px' }}>
-            Recent Chats
-          </p>
-        )}
-
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {sessions.map(s => (
-            sidebarCollapsed ? (
-              <button
-                key={s.id}
-                onClick={() => setActiveId(s.id)}
-                title={s.name}
-                style={{
-                  width: 36, height: 36, borderRadius: 8, border: `1px solid ${s.id === activeId ? 'var(--accent-bd)' : 'transparent'}`,
-                  background: s.id === activeId ? 'var(--accent-bg)' : 'transparent',
-                  color: s.id === activeId ? 'var(--accent)' : 'var(--muted)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', margin: '0 auto',
-                }}
-              >
-                <MessageSquare size={15} />
-              </button>
-            ) : (
-              <SessionItem
-                key={s.id}
-                session={s}
-                active={s.id === activeId}
-                onClick={() => setActiveId(s.id)}
-                onRename={renameSession}
-                onDelete={deleteSession}
-              />
-            )
-          ))}
-        </div>
-      </div>
+    <div style={{ display: 'flex', height: '100%', background: 'var(--bg)', overflow: 'hidden' }}>
 
       {/* ── CENTER WORKSPACE: CHAT CONTENT & INPUT ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%' }}>
@@ -860,8 +780,9 @@ export default function ChatPage() {
           padding: '10px 20px', background: 'var(--surface)', borderBottom: '1px solid var(--border)',
           display: 'flex', alignItems: 'center', gap: 12, overflowX: 'auto', flexShrink: 0,
         }}>
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0, whiteSpace: 'nowrap', minWidth: 100 }}>
-            {activeSession?.name || 'General Chat'}
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0, whiteSpace: 'nowrap', minWidth: 100, display: 'flex', alignItems: 'center', gap: 6 }}>
+            {mode !== 'CHAT' && <Sparkles size={14} style={{ color: 'var(--accent)' }} />}
+            {displayTitle}
           </h2>
 
           <div style={{ height: 16, width: 1, background: 'var(--border)', flexShrink: 0 }} />
@@ -913,6 +834,19 @@ export default function ChatPage() {
 
         {/* Bottom Input Form */}
         <div style={{ padding: '12px 20px', background: 'var(--surface)', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+
+          {/* Active Mode Pill Badge */}
+          {mode !== 'CHAT' && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '4px 10px', borderRadius: 6, background: 'var(--accent-bg)',
+              border: '1px solid var(--accent-bd)', color: 'var(--accent)',
+              fontSize: 11, fontWeight: 600, marginBottom: 8,
+            }}>
+              <Sparkles size={12} />
+              <span>Active Mode: {activeModeObj.label}</span>
+            </div>
+          )}
 
           {/* Attached Context Docs Pills */}
           {contextDocs.length > 0 && (
