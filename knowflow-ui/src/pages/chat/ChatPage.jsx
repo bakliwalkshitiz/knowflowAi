@@ -9,6 +9,7 @@ import {
 import { useSearchParams } from 'react-router-dom'
 import { chatApi, documentApi, userApi } from '../../api/client'
 import mermaid from 'mermaid'
+import { useAuth } from '../../context/AuthContext'
 
 mermaid.initialize({
   startOnLoad: false,
@@ -18,43 +19,71 @@ mermaid.initialize({
   suppressErrorRendering: true,
 })
 
-const SESSIONS_STORAGE_KEY = 'kf_sessions'
+
 
 const MODES = [
-  { key: 'CHAT',          label: 'Chat',                   icon: MessageSquare },
-  { key: 'SUMMARY',       label: 'Summary',                icon: FileText },
+  { key: 'CHAT', label: 'Chat', icon: MessageSquare },
+  { key: 'SUMMARY', label: 'Summary', icon: FileText },
   { key: 'SYSTEM_DESIGN', label: 'System Design (LLD & HLD)', icon: Layers },
-  { key: 'FLASHCARD',     label: 'Flashcards',             icon: BookOpen },
-  { key: 'QUIZ',          label: 'Quiz',                   icon: HelpCircle },
-  { key: 'INTERVIEW',     label: 'Interview',              icon: Mic },
-  { key: 'MINDMAP',       label: 'Mind Map',               icon: Brain },
+  { key: 'FLASHCARD', label: 'Flashcards', icon: BookOpen },
+  { key: 'QUIZ', label: 'Quiz', icon: HelpCircle },
+  { key: 'INTERVIEW', label: 'Interview', icon: Mic },
+  { key: 'MINDMAP', label: 'Mind Map', icon: Brain },
 ]
 
 const DEFAULT_PROMPTS = {
-  SUMMARY:       'Summarize the uploaded document concisely in key bullet points.',
+  SUMMARY: 'Summarize the uploaded document concisely in key bullet points.',
   SYSTEM_DESIGN: 'Generate a complete System Design document including LLD (Mermaid classDiagram) and HLD (Mermaid graph TD architecture diagram).',
-  FLASHCARD:     'Generate 5 to 10 high quality flashcards covering the key concepts from the document.',
-  QUIZ:          'Generate a 5-question multiple choice quiz with correct answers and explanations.',
-  INTERVIEW:     'Generate 5 mock interview questions with expert sample answers.',
-  MINDMAP:       'Create a structured mind map representation of the main topics.',
+  FLASHCARD: 'Generate 5 to 10 high quality flashcards covering the key concepts from the document.',
+  QUIZ: 'Generate a 5-question multiple choice quiz with correct answers and explanations.',
+  INTERVIEW: 'Generate 5 mock interview questions with expert sample answers.',
+  MINDMAP: 'Create a structured mind map representation of the main topics.',
 }
 
-function loadSessions() {
+function loadSessions(storageKey) {
   try {
-    const raw = localStorage.getItem(SESSIONS_STORAGE_KEY)
-    if (!raw) return [{ id: 'default', name: 'General Chat', messages: [], createdAt: new Date().toISOString() }]
+    const raw = localStorage.getItem(storageKey)
+
+    if (!raw) {
+      return [
+        {
+          id: 'default',
+          name: 'General Chat',
+          messages: [],
+          createdAt: new Date().toISOString()
+        }
+      ]
+    }
+
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [{ id: 'default', name: 'General Chat', messages: [], createdAt: new Date().toISOString() }]
+
+    return Array.isArray(parsed) && parsed.length > 0
+      ? parsed
+      : [
+        {
+          id: 'default',
+          name: 'General Chat',
+          messages: [],
+          createdAt: new Date().toISOString()
+        }
+      ]
   } catch {
-    return [{ id: 'default', name: 'General Chat', messages: [], createdAt: new Date().toISOString() }]
+    return [
+      {
+        id: 'default',
+        name: 'General Chat',
+        messages: [],
+        createdAt: new Date().toISOString()
+      }
+    ]
   }
 }
 
-function saveSessions(sessions) {
+function saveSessions(storageKey, sessions) {
   try {
-    localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions))
+    localStorage.setItem(storageKey, JSON.stringify(sessions))
     window.dispatchEvent(new Event('kf_sessions_updated'))
-  } catch {}
+  } catch { }
 }
 
 function normalizeDoc(doc) {
@@ -209,7 +238,7 @@ function parseFlashcards(text) {
         }))
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 
   const cards = []
   const frontBackRegex = /(?:Card\s*\d+:?|Q\d+:?|Front:?|\d+\.\s*Front:?)\s*([\s\S]*?)(?:Back:?|A\d+:?|Answer:?|\d+\.\s*Back:?)\s*([\s\S]*?)(?=(?:Card\s*\d+:?|Q\d+:?|Front:?|\d+\.\s*Front:?|$))/gi
@@ -266,7 +295,7 @@ function FlashcardDeck({ initialCards }) {
 
       {/* Flashcards Side-by-Side Container */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14, marginBottom: 14 }}>
-        
+
         {/* Flashcard Front */}
         <div style={{
           background: 'var(--surface)', border: '1px solid var(--border)',
@@ -549,17 +578,27 @@ function TypingIndicator() {
 
 /* ─────────────────── MAIN PAGE ─────────────────── */
 export default function ChatPage() {
+  const { user } = useAuth()
+
+  const SESSIONS_STORAGE_KEY =
+    `kf_sessions_${user?.email || 'guest'}`
   const [searchParams] = useSearchParams()
   const sessionUrlParam = searchParams.get('session')
   const highlightParam = searchParams.get('highlight')
 
-  const [sessions, setSessions] = useState(loadSessions)
-  const [activeId, setActiveId]  = useState(() => sessionUrlParam || loadSessions()[0]?.id)
-  const [mode, setMode]          = useState('CHAT')
-  const [input, setInput]        = useState('')
+  const [sessions, setSessions] = useState(() =>
+    loadSessions(SESSIONS_STORAGE_KEY)
+  )
+  const [activeId, setActiveId] =
+    useState(() =>
+      sessionUrlParam ||
+      loadSessions(SESSIONS_STORAGE_KEY)[0]?.id
+    )
+  const [mode, setMode] = useState('CHAT')
+  const [input, setInput] = useState('')
   const [contextDocs, setContextDocs] = useState([])
-  const [documents, setDocuments]   = useState([])
-  const [loading, setLoading]     = useState(false)
+  const [documents, setDocuments] = useState([])
+  const [loading, setLoading] = useState(false)
   const [showDocPicker, setShowDocPicker] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     return localStorage.getItem('kf_sidebar_collapsed') === 'true'
@@ -587,14 +626,15 @@ export default function ChatPage() {
   }
 
   useEffect(() => {
-    const sync = () => setSessions(loadSessions())
+    const sync = () =>
+      setSessions(loadSessions(SESSIONS_STORAGE_KEY))
     window.addEventListener('storage', sync)
     window.addEventListener('kf_sessions_updated', sync)
     return () => {
       window.removeEventListener('storage', sync)
       window.removeEventListener('kf_sessions_updated', sync)
     }
-  }, [])
+  }, [SESSIONS_STORAGE_KEY])
 
   const activeSession = sessions.find(s => s.id === activeId) || {
     id: activeId || `conv-${Date.now()}`,
@@ -607,12 +647,12 @@ export default function ChatPage() {
     documentApi.getAll().then(res => {
       const list = (res?.data || []).map(normalizeDoc).filter(Boolean)
       setDocuments(list)
-    }).catch(() => {})
+    }).catch(() => { })
   }, [])
 
   useEffect(() => {
     if (sessionUrlParam) {
-      const current = loadSessions()
+      const current = loadSessions(SESSIONS_STORAGE_KEY)
       setSessions(current)
       setActiveId(sessionUrlParam)
     }
@@ -650,11 +690,11 @@ export default function ChatPage() {
           })
           setSessions(prev => {
             const updated = prev.map(s => s.id === activeId ? { ...s, messages: loadedMsgs } : s)
-            saveSessions(updated)
+            saveSessions(SESSIONS_STORAGE_KEY, updated)
             return updated
           })
         }
-      }).catch(() => {})
+      }).catch(() => { })
     }
   }, [activeId])
 
@@ -667,7 +707,7 @@ export default function ChatPage() {
     const newSess = { id: newId, name: 'General Chat', messages: [], createdAt: new Date().toISOString() }
     const updated = [newSess, ...sessions]
     setSessions(updated)
-    saveSessions(updated)
+    saveSessions(SESSIONS_STORAGE_KEY, updated)
     setActiveId(newId)
   }
 
@@ -675,14 +715,14 @@ export default function ChatPage() {
     const updated = sessions.filter(s => s.id !== id)
     const next = updated.length > 0 ? updated : [{ id: 'default', name: 'General Chat', messages: [], createdAt: new Date().toISOString() }]
     setSessions(next)
-    saveSessions(next)
+    saveSessions(SESSIONS_STORAGE_KEY, next)
     if (activeId === id) setActiveId(next[0].id)
   }
 
   const renameSession = (id, newName) => {
     const updated = sessions.map(s => s.id === id ? { ...s, name: newName } : s)
     setSessions(updated)
-    saveSessions(updated)
+    saveSessions(SESSIONS_STORAGE_KEY, updated)
   }
 
   const toggleDocContext = (doc) => {
@@ -719,7 +759,7 @@ export default function ChatPage() {
       s.id === activeId ? { ...s, name: title, messages: updatedMsgs } : s
     )
     setSessions(updatedSessions)
-    saveSessions(updatedSessions)
+    saveSessions(SESSIONS_STORAGE_KEY, updatedSessions)
 
     setInput('')
     setContextDocs([])
@@ -746,7 +786,7 @@ export default function ChatPage() {
         s.id === activeId ? { ...s, name: title, messages: finalMsgs } : s
       )
       setSessions(finalSessions)
-      saveSessions(finalSessions)
+      saveSessions(SESSIONS_STORAGE_KEY, finalSessions)
     } catch (err) {
       console.error('Chat API error:', err?.response?.data || err?.message || err)
       const backendMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Unknown error'
@@ -760,7 +800,7 @@ export default function ChatPage() {
         s.id === activeId ? { ...s, name: title, messages: finalMsgs } : s
       )
       setSessions(finalSessions)
-      saveSessions(finalSessions)
+      saveSessions(SESSIONS_STORAGE_KEY, finalSessions)
     } finally {
       setLoading(false)
     }

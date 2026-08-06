@@ -6,15 +6,16 @@ import {
 } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { chatApi } from '../../api/client'
+import { useAuth } from '../../context/AuthContext'
 
 const MODE_BADGES = {
-  SUMMARY:       { label: 'Summary',       color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.12)', border: 'rgba(96, 165, 250, 0.3)' },
+  SUMMARY: { label: 'Summary', color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.12)', border: 'rgba(96, 165, 250, 0.3)' },
   SYSTEM_DESIGN: { label: 'System Design', color: '#c084fc', bg: 'rgba(192, 132, 252, 0.12)', border: 'rgba(192, 132, 252, 0.3)' },
-  FLASHCARD:     { label: 'Flashcard',     color: '#fb923c', bg: 'rgba(251, 146, 60, 0.12)', border: 'rgba(251, 146, 60, 0.3)' },
-  QUIZ:          { label: 'Quiz',          color: '#34d399', bg: 'rgba(52, 211, 153, 0.12)', border: 'rgba(52, 211, 153, 0.3)' },
-  INTERVIEW:     { label: 'Interview',     color: '#fb7185', bg: 'rgba(251, 113, 133, 0.12)', border: 'rgba(251, 113, 133, 0.3)' },
-  MINDMAP:       { label: 'Mind Map',      color: '#facc15', bg: 'rgba(250, 204, 21, 0.12)', border: 'rgba(250, 204, 21, 0.3)' },
-  CHAT:          { label: 'General Chat',  color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.12)', border: 'rgba(148, 163, 184, 0.3)' },
+  FLASHCARD: { label: 'Flashcard', color: '#fb923c', bg: 'rgba(251, 146, 60, 0.12)', border: 'rgba(251, 146, 60, 0.3)' },
+  QUIZ: { label: 'Quiz', color: '#34d399', bg: 'rgba(52, 211, 153, 0.12)', border: 'rgba(52, 211, 153, 0.3)' },
+  INTERVIEW: { label: 'Interview', color: '#fb7185', bg: 'rgba(251, 113, 133, 0.12)', border: 'rgba(251, 113, 133, 0.3)' },
+  MINDMAP: { label: 'Mind Map', color: '#facc15', bg: 'rgba(250, 204, 21, 0.12)', border: 'rgba(250, 204, 21, 0.3)' },
+  CHAT: { label: 'General Chat', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.12)', border: 'rgba(148, 163, 184, 0.3)' },
 }
 
 export function getEffectivePromptType(item) {
@@ -54,7 +55,15 @@ export function parseIsoDate(s) {
 }
 
 export default function HistoryPage() {
+
+  const { user } = useAuth()
+
+  const STORAGE_KEY =
+    `kf_sessions_${user?.email || 'guest'}`
+
   const navigate = useNavigate()
+
+  const [searchParams] = useSearchParams()
   const [searchParams] = useSearchParams()
   const modeFilterParam = searchParams.get('mode') || searchParams.get('type')
 
@@ -84,10 +93,12 @@ export default function HistoryPage() {
   // Read local chat sessions
   const localSessions = (() => {
     try {
-      const stored = localStorage.getItem('kf_sessions')
+      const stored = localStorage.getItem(STORAGE_KEY)
       const parsed = stored ? JSON.parse(stored) : []
       return Array.isArray(parsed) ? parsed : []
-    } catch { return [] }
+    } catch {
+      return []
+    }
   })()
 
   const safeBackendHistory = Array.isArray(backendHistory) ? backendHistory : []

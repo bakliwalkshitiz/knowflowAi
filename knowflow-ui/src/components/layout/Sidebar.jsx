@@ -10,51 +10,77 @@ import { useAuth } from '../../context/AuthContext'
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-  { icon: MessageSquare,   label: 'Chat',      path: '/chat' },
-  { icon: FileText,        label: 'Documents',  path: '/documents' },
-  { icon: History,         label: 'History',    path: '/history' },
-  { icon: Settings,        label: 'Settings',   path: '/settings' },
+  { icon: MessageSquare, label: 'Chat', path: '/chat' },
+  { icon: FileText, label: 'Documents', path: '/documents' },
+  { icon: History, label: 'History', path: '/history' },
+  { icon: Settings, label: 'Settings', path: '/settings' },
 ]
 
-function loadSessions() {
+function loadSessions(storageKey) {
   try {
-    const raw = localStorage.getItem('kf_sessions')
+    const raw = localStorage.getItem(storageKey)
+
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (parsed && parsed.length > 0) return parsed
+
+      if (parsed && parsed.length > 0) {
+        return parsed
+      }
     }
-  } catch {}
-  return [{ id: `conv-${Date.now()}`, name: 'General Chat', messages: [], createdAt: new Date().toISOString() }]
+  } catch { }
+
+  return [
+    {
+      id: `conv-${Date.now()}`,
+      name: 'General Chat',
+      messages: [],
+      createdAt: new Date().toISOString()
+    }
+  ]
 }
 
-function saveSessions(sessions) {
+function saveSessions(storageKey, sessions) {
   try {
-    localStorage.setItem('kf_sessions', JSON.stringify(sessions))
+    localStorage.setItem(storageKey, JSON.stringify(sessions))
     window.dispatchEvent(new Event('kf_sessions_updated'))
-  } catch {}
+  } catch { }
 }
 
 export default function Sidebar() {
-  const navigate  = useNavigate()
-  const location  = useLocation()
+
+  const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const activeSessionIdFromUrl = searchParams.get('session')
+
   const { user, logout } = useAuth()
-  
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('kf_sidebar_collapsed') === 'true')
-  const [sessions, setSessions] = useState(loadSessions)
+
+  const STORAGE_KEY = `kf_sessions_${user?.email || 'guest'}`
+
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem('kf_sidebar_collapsed') === 'true'
+  )
+
+  const [sessions, setSessions] = useState(() =>
+    loadSessions(STORAGE_KEY)
+  )
+
   const [renamingId, setRenamingId] = useState(null)
   const [renameInput, setRenameInput] = useState('')
 
   useEffect(() => {
-    const sync = () => setSessions(loadSessions())
+    const sync = () => {
+      setSessions(loadSessions(STORAGE_KEY))
+    }
+
     window.addEventListener('storage', sync)
     window.addEventListener('kf_sessions_updated', sync)
+
     return () => {
       window.removeEventListener('storage', sync)
       window.removeEventListener('kf_sessions_updated', sync)
     }
-  }, [])
+  }, [STORAGE_KEY])
 
   const toggleCollapse = () => {
     setCollapsed(prev => {
@@ -71,7 +97,7 @@ export default function Sidebar() {
     const newSess = { id: newId, name: 'General Chat', messages: [], createdAt: new Date().toISOString() }
     const updated = [newSess, ...sessions]
     setSessions(updated)
-    saveSessions(updated)
+    saveSessions(STORAGE_KEY, updated)
     navigate(`/chat?session=${newId}`)
   }
 
@@ -83,7 +109,7 @@ export default function Sidebar() {
     if (renameInput.trim()) {
       const updated = sessions.map(s => s.id === id ? { ...s, name: renameInput.trim() } : s)
       setSessions(updated)
-      saveSessions(updated)
+      saveSessions(STORAGE_KEY, updated)
     }
     setRenamingId(null)
   }
@@ -93,7 +119,7 @@ export default function Sidebar() {
     const updated = sessions.filter(s => s.id !== id)
     const next = updated.length > 0 ? updated : [{ id: `conv-${Date.now()}`, name: 'General Chat', messages: [], createdAt: new Date().toISOString() }]
     setSessions(next)
-    saveSessions(next)
+    saveSessions(STORAGE_KEY, next)
     if (activeSessionIdFromUrl === id || location.pathname.startsWith('/chat')) {
       navigate(`/chat?session=${next[0].id}`)
     }
