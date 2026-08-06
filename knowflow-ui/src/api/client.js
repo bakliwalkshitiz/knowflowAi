@@ -27,27 +27,27 @@ api.interceptors.response.use(
 )
 
 export const authApi = {
-  login:    (data) => api.post('/auth/login', data),
+  login: (data) => api.post('/auth/login', data),
   register: (data) => api.post('/auth/register', data),
 }
 
 export const documentApi = {
-  upload:   (formData) => api.post('/documents/upload', formData, {
+  upload: (formData) => api.post('/documents/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
-  list:     (page = 0, size = 12) => api.get(`/documents?page=${page}&size=${size}`),
-  getAll:   () => api.get('/documents/all'),
-  delete:   (id) => api.delete(`/documents/${id}`),
-  rename:   (id, data) => api.patch(`/documents/${id}/rename`, data),
+  list: (page = 0, size = 12) => api.get(`/documents?page=${page}&size=${size}`),
+  getAll: () => api.get('/documents'),
+  delete: (id) => api.delete(`/documents/${id}`),
+  rename: (id, data) => api.patch(`/documents/${id}/rename`, data),
   download: (id) => api.get(`/documents/${id}/download`, { responseType: 'blob' }),
-  search:   (keyword) => api.get(`/documents/search?keyword=${encodeURIComponent(keyword)}`),
-  stats:    () => api.get('/documents/stats'),
+  search: (keyword) => api.get(`/documents/search?keyword=${encodeURIComponent(keyword)}`),
+  stats: () => api.get('/documents/stats'),
 }
 
 export const chatApi = {
-  send:                 (data) => api.post('/chat', data),
-  history:              ()     => api.get('/chat/history'),
-  conversationHistory:  (id)   => api.get(`/chat/history/${id}`),
+  send: (data) => api.post('/chat', data),
+  history: () => api.get('/chat/history'),
+  conversationHistory: (id) => api.get(`/chat/history/${id}`),
 }
 
 export const userApi = {
@@ -56,8 +56,8 @@ export const userApi = {
 }
 
 export const ragApi = {
-  ask:    (question) => api.get(`/rag?question=${encodeURIComponent(question)}`),
-  search: (data)     => api.post('/rag/search', data),
+  ask: (question) => api.get(`/rag?question=${encodeURIComponent(question)}`),
+  search: (data) => api.post('/rag/search', data),
 }
 
 export default api
