@@ -442,37 +442,94 @@ function FlashcardDeck({ initialCards }) {
 /* ────────────────── QUIZ PARSER & INTERACTIVE COMPONENT ────────────────── */
 function parseQuiz(text) {
   if (!text) return null
+  let questions = []
+
+  // 1. Try parsing JSON block
   try {
     const jsonMatch = text.match(/```json([\s\S]*?)```/) || text.match(/\[\s*\{[\s\S]*\}\s*\]/)
     if (jsonMatch) {
       const raw = jsonMatch[1] || jsonMatch[0]
       const parsed = JSON.parse(raw.trim())
       if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].question || parsed[0].q)) {
-        return parsed.map((q, i) => ({
-          id: i + 1,
-          question: q.question || q.q || `Question ${i + 1}`,
-          options: Array.isArray(q.options) ? q.options : (Array.isArray(q.choices) ? q.choices : []),
-          correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : (typeof q.correctOption === 'number' ? q.correctOption : 0),
-          explanation: q.explanation || q.answer || 'Detailed explanation of the correct option.',
-        }))
+        questions = parsed.map((q, i) => {
+          let opts = Array.isArray(q.options) ? q.options : (Array.isArray(q.choices) ? q.choices : [])
+          let correctIdx = typeof q.correctIndex === 'number' ? q.correctIndex : (typeof q.correctOption === 'number' ? q.correctOption : 0)
+
+          // Failsafe: Ensure options exist
+          if (!opts || opts.length < 2) {
+            const mainAns = (q.answer || q.correctAnswer || q.explanation || 'Correct Answer').slice(0, 80)
+            opts = [
+              mainAns,
+              'Incorrect concept statement (does not apply here)',
+              'Partial concept (missing required configuration)',
+              'None of the above options'
+            ]
+            correctIdx = 0
+          }
+
+          return {
+            id: i + 1,
+            question: q.question || q.q || `Question ${i + 1}`,
+            options: opts,
+            correctIndex: correctIdx,
+            explanation: q.explanation || q.answer || 'Detailed explanation of the correct option.',
+          }
+        })
+        return questions
       }
     }
   } catch (e) { }
 
-  const questions = []
-  const qRegex = /(?:Q\d+:?|Question\s*\d+:?|\d+\.\s*Question:?)\s*([\s\S]*?)(?:A\d+:?|Answer:?|Explanation:?)\s*([\s\S]*?)(?=(?:Q\d+:?|Question\s*\d+:?|\d+\.\s*Question:?|$))/gi
-  let match
-  while ((match = qRegex.exec(text)) !== null) {
-    if (match[1] && match[2] && match[1].trim().length > 0) {
+  // 2. Regex fallback for text formatted questions (e.g. Question 1: ... A) ... B) ... C) ... D) ...)
+  const qBlocks = text.split(/(?=(?:Q\d+:?|Question\s*\d+:?|\d+\.\s*Question:?|\d+\.\s+[A-Z]))/gi).filter(b => b.trim().length > 10)
+
+  qBlocks.forEach((block, i) => {
+    const qMatch = block.match(/(?:Q\d+:?|Question\s*\d+:?|\d+\.\s*Question:?|\d+\.)?\s*([\s\S]*?)(?=(?:A[\).\:]|Option A|\n\s*[A-D][\)\.]|Answer:?|EXPLANATION:?|$))/i)
+    const qText = qMatch ? qMatch[1].trim() : ''
+
+    if (qText) {
+      const optRegex = /(?:[A-D][\)\.]|Option\s+[A-D]:?)\s*([^\n]+)/gi
+      const extractedOpts = []
+      let optM
+      while ((optM = optRegex.exec(block)) !== null) {
+        if (optM[1] && optM[1].trim()) {
+          extractedOpts.push(optM[1].trim())
+        }
+      }
+
+      const ansMatch = block.match(/(?:Answer:?|Correct Answer:?|EXPLANATION:?)\s*([\s\S]*?)$/i)
+      const expText = ansMatch ? ansMatch[1].trim() : 'Review concept for details.'
+
+      let opts = extractedOpts
+      let correctIdx = 0
+
+      const letterMatch = block.match(/(?:Answer|Correct Option):\s*([A-D])/i)
+      if (letterMatch) {
+        const letter = letterMatch[1].toUpperCase()
+        correctIdx = letter.charCodeAt(0) - 65
+      }
+
+      if (!opts || opts.length < 2) {
+        const mainAns = expText.split('\n')[0].replace(/```[\s\S]*?```/g, '').trim().slice(0, 90) || 'Correct concept implementation'
+        opts = [
+          mainAns,
+          'Incorrect approach (causes runtime errors or invalid query logic)',
+          'Sub-optimal approach (does not scale in production databases)',
+          'None of the above'
+        ]
+        correctIdx = 0
+      }
+
       questions.push({
-        id: questions.length + 1,
-        question: match[1].trim(),
-        options: [],
-        correctIndex: 0,
-        explanation: match[2].trim(),
+        id: i + 1,
+        question: qText.replace(/```[\s\S]*?```/g, '').trim(),
+        options: opts,
+        correctIndex: correctIdx >= 0 && correctIdx < opts.length ? correctIdx : 0,
+        explanation: expText,
       })
     }
-  }
+  })
+
   return questions.length > 0 ? questions : null
 }
 

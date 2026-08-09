@@ -97,8 +97,9 @@ public class PromptTemplateFactory {
             return """
                     User Request / Topic: %s
 
-                    INSTRUCTIONS FOR INTERACTIVE QUIZ:
-                    Generate 5 multiple-choice quiz questions based on the topic.
+                    INSTRUCTIONS FOR INTERACTIVE MULTIPLE-CHOICE QUIZ:
+                    Generate multiple-choice quiz questions based on the user request.
+                    EVERY question MUST have exactly 4 options ("options" array with 4 items: A, B, C, D) and a valid "correctIndex" (0 to 3) pointing to the correct option.
                     You MUST format your entire response as a single valid JSON array inside a ```json ``` codeblock:
                     ```json
                     [
