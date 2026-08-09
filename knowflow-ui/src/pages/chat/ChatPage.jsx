@@ -1233,17 +1233,22 @@ export default function ChatPage() {
   }
 
   useEffect(() => {
-    const sync = () =>
-      setSessions(loadSessions(SESSIONS_STORAGE_KEY))
+    const sync = (e) => {
+      if (e.key === SESSIONS_STORAGE_KEY) {
+        setSessions(loadSessions(SESSIONS_STORAGE_KEY))
+      }
+    }
     window.addEventListener('storage', sync)
-    window.addEventListener('kf_sessions_updated', sync)
     return () => {
       window.removeEventListener('storage', sync)
-      window.removeEventListener('kf_sessions_updated', sync)
     }
   }, [SESSIONS_STORAGE_KEY])
 
-  const activeSession = sessions.find(s => s.id === activeId) || {
+  const activeSession = sessions.find(s =>
+    s.id === activeId ||
+    String(s.id || '').trim() === String(activeId || '').trim() ||
+    (s.id && activeId && decodeURIComponent(String(s.id)).trim() === decodeURIComponent(String(activeId)).trim())
+  ) || {
     id: activeId || `conv-${Date.now()}`,
     name: 'General Chat',
     messages: [],
