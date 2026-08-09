@@ -1257,17 +1257,29 @@ export default function ChatPage() {
     }).catch(() => { })
   }, [])
 
-  // Fetch session titles list for Recent Chats sidebar on mount / user change
+  // Fetch and group entire user chat history from backend database on load
   useEffect(() => {
     if (!user) return
 
     chatApi.history().then(res => {
       if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        // Sort items chronologically (oldest first) so session messages appear in exact sequence
+        const sorted = [...res.data].sort((a, b) => {
+          const tA = new Date(a.createdAt || 0).getTime()
+          const tB = new Date(b.createdAt || 0).getTime()
+          return tA - tB
+        })
+
         const sessionMap = new Map()
 
-        res.data.forEach(item => {
-          if (!item || !item.conversationId) return
-          const convId = item.conversationId
+        sorted.forEach(item => {
+          if (!item) return
+          const convId = item.conversationId || 'default'
+          const itemMode = getEffectivePromptType(item)
+          const formattedTime = item.createdAt
+            ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : '00:00'
+
           if (!sessionMap.has(convId)) {
             sessionMap.set(convId, {
               id: convId,
@@ -1276,25 +1288,40 @@ export default function ChatPage() {
               createdAt: item.createdAt || new Date().toISOString()
             })
           }
+
+          const sess = sessionMap.get(convId)
+          if (item.prompt) {
+            sess.messages.push({
+              role: 'user',
+              content: item.prompt,
+              time: formattedTime,
+              promptType: itemMode
+            })
+          }
+          if (item.response) {
+            sess.messages.push({
+              role: 'assistant',
+              content: item.response,
+              time: formattedTime,
+              promptType: itemMode
+            })
+          }
         })
 
-        const metaSessions = Array.from(sessionMap.values())
-        if (metaSessions.length > 0) {
-          setSessions(prev => {
-            const map = new Map()
-            prev.forEach(s => map.set(s.id, s))
-            metaSessions.forEach(ms => {
-              if (!map.has(ms.id)) {
-                map.set(ms.id, ms)
-              }
-            })
-            const merged = Array.from(map.values())
-            saveSessions(SESSIONS_STORAGE_KEY, merged)
-            return merged
-          })
+        const fetchedSessions = Array.from(sessionMap.values())
+        if (fetchedSessions.length > 0) {
+          // Reverse session order so newest conversation is at top of Recent Chats sidebar
+          fetchedSessions.reverse()
 
-          if (!sessionUrlParam && !activeId) {
-            setActiveId(metaSessions[0].id)
+          setSessions(fetchedSessions)
+          saveSessions(SESSIONS_STORAGE_KEY, fetchedSessions)
+
+          const targetId = sessionUrlParam || activeId
+          const match = fetchedSessions.find(s => s.id === targetId || s.id.trim() === (targetId || '').trim())
+          if (match) {
+            setActiveId(match.id)
+          } else if (fetchedSessions[0]?.id) {
+            setActiveId(fetchedSessions[0].id)
           }
         }
       }
@@ -1332,49 +1359,6 @@ export default function ChatPage() {
       }, 300)
     }
   }, [highlightParam, activeSession])
-
-  // Always fetch full messages from backend for activeId
-  useEffect(() => {
-    if (!activeId) return
-    chatApi.conversationHistory(activeId).then(res => {
-      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
-        const loadedMsgs = []
-        res.data.forEach(h => {
-          const itemMode = getEffectivePromptType(h)
-          if (h.prompt) {
-            loadedMsgs.push({
-              role: 'user',
-              content: h.prompt,
-              time: h.createdAt ? new Date(h.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '00:00',
-              promptType: itemMode
-            })
-          }
-          if (h.response) {
-            loadedMsgs.push({
-              role: 'assistant',
-              content: h.response,
-              time: h.createdAt ? new Date(h.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '00:00',
-              promptType: itemMode
-            })
-          }
-        })
-
-        setSessions(prev => {
-          const title = res.data[0]?.prompt ? res.data[0].prompt.slice(0, 28) : 'General Chat'
-          const exists = prev.some(s => s.id === activeId)
-          let updated
-          if (exists) {
-            updated = prev.map(s => s.id === activeId ? { ...s, name: (s.name === 'General Chat' || !s.name) ? title : s.name, messages: loadedMsgs } : s)
-          } else {
-            const newSess = { id: activeId, name: title, messages: loadedMsgs, createdAt: new Date().toISOString() }
-            updated = [newSess, ...prev]
-          }
-          saveSessions(SESSIONS_STORAGE_KEY, updated)
-          return updated
-        })
-      }
-    }).catch(() => { })
-  }, [activeId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
