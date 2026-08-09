@@ -980,13 +980,13 @@ function InterviewDeck({ initialQuestions }) {
 function MessageContent({ text, promptType }) {
   if (!text) return null
 
-  // If message was generated in FLASHCARD mode or matches flashcard format
+  // If message was generated in FLASHCARD mode
   if (promptType === 'FLASHCARD') {
     const flashcards = parseFlashcards(text)
     if (flashcards) return <FlashcardDeck initialCards={flashcards} />
   }
 
-  // If message was generated in QUIZ mode or matches quiz format
+  // If message was generated in QUIZ mode
   if (promptType === 'QUIZ') {
     const quiz = parseQuiz(text)
     if (quiz) return <QuizDeck initialQuestions={quiz} />
@@ -998,16 +998,18 @@ function MessageContent({ text, promptType }) {
     if (interview) return <InterviewDeck initialQuestions={interview} />
   }
 
-  // Fallback checks for un-tagged messages
-  if (!promptType || promptType === 'CHAT') {
-    const flashcards = parseFlashcards(text)
-    if (flashcards) return <FlashcardDeck initialCards={flashcards} />
+  // Fallback ONLY for untagged legacy items that explicitly contain JSON arrays or card markers
+  if (!promptType) {
+    if (text.includes('```json') || text.includes('Card 1') || text.includes('Front:')) {
+      const flashcards = parseFlashcards(text)
+      if (flashcards) return <FlashcardDeck initialCards={flashcards} />
 
-    const quiz = parseQuiz(text)
-    if (quiz) return <QuizDeck initialQuestions={quiz} />
+      const quiz = parseQuiz(text)
+      if (quiz) return <QuizDeck initialQuestions={quiz} />
 
-    const interview = parseInterview(text)
-    if (interview) return <InterviewDeck initialQuestions={interview} />
+      const interview = parseInterview(text)
+      if (interview) return <InterviewDeck initialQuestions={interview} />
+    }
   }
 
   const sanitized = text
