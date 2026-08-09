@@ -1257,72 +1257,55 @@ export default function ChatPage() {
     }).catch(() => { })
   }, [])
 
-  // Fetch and group entire user chat history from backend database on load
+  // Fetch and group entire user chat history from backend database on load (same algorithm as HistoryPage.jsx)
   useEffect(() => {
     if (!user) return
 
     chatApi.history().then(res => {
-      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
-        // Sort items chronologically (oldest first) so session messages appear in exact sequence
-        const sorted = [...res.data].sort((a, b) => {
-          const tA = new Date(a.createdAt || 0).getTime()
-          const tB = new Date(b.createdAt || 0).getTime()
-          return tA - tB
-        })
+      const data = res?.data
+      if (!Array.isArray(data) || data.length === 0) return
 
-        const sessionMap = new Map()
+      const sessionMap = new Map()
 
-        sorted.forEach(item => {
-          if (!item) return
-          const convId = item.conversationId || 'default'
-          const itemMode = getEffectivePromptType(item)
-          const formattedTime = item.createdAt
-            ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : '00:00'
+      data.forEach(item => {
+        if (!item) return
+        const convId = item.conversationId || 'unknown'
+        const itemMode = getEffectivePromptType(item)
+        const formattedTime = item.createdAt
+          ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : '00:00'
 
-          if (!sessionMap.has(convId)) {
-            sessionMap.set(convId, {
-              id: convId,
-              name: item.prompt ? item.prompt.slice(0, 28) : 'General Chat',
-              messages: [],
-              createdAt: item.createdAt || new Date().toISOString()
-            })
-          }
+        const userMsg = item.prompt ? { role: 'user', content: item.prompt, time: formattedTime, promptType: itemMode } : null
+        const botMsg = item.response ? { role: 'assistant', content: item.response, time: formattedTime, promptType: itemMode } : null
 
+        if (sessionMap.has(convId)) {
           const sess = sessionMap.get(convId)
-          if (item.prompt) {
-            sess.messages.push({
-              role: 'user',
-              content: item.prompt,
-              time: formattedTime,
-              promptType: itemMode
-            })
-          }
-          if (item.response) {
-            sess.messages.push({
-              role: 'assistant',
-              content: item.response,
-              time: formattedTime,
-              promptType: itemMode
-            })
-          }
-        })
+          if (userMsg) sess.messages.push(userMsg)
+          if (botMsg) sess.messages.push(botMsg)
+        } else {
+          sessionMap.set(convId, {
+            id: convId,
+            name: item.prompt ? item.prompt.slice(0, 28) : 'General Chat',
+            messages: [
+              ...(userMsg ? [userMsg] : []),
+              ...(botMsg ? [botMsg] : []),
+            ],
+            createdAt: item.createdAt || new Date().toISOString(),
+          })
+        }
+      })
 
-        const fetchedSessions = Array.from(sessionMap.values())
-        if (fetchedSessions.length > 0) {
-          // Reverse session order so newest conversation is at top of Recent Chats sidebar
-          fetchedSessions.reverse()
+      const fetchedSessions = Array.from(sessionMap.values())
+      if (fetchedSessions.length > 0) {
+        setSessions(fetchedSessions)
+        saveSessions(SESSIONS_STORAGE_KEY, fetchedSessions)
 
-          setSessions(fetchedSessions)
-          saveSessions(SESSIONS_STORAGE_KEY, fetchedSessions)
-
-          const targetId = sessionUrlParam || activeId
-          const match = fetchedSessions.find(s => s.id === targetId || s.id.trim() === (targetId || '').trim())
-          if (match) {
-            setActiveId(match.id)
-          } else if (fetchedSessions[0]?.id) {
-            setActiveId(fetchedSessions[0].id)
-          }
+        const targetId = sessionUrlParam || activeId
+        const match = fetchedSessions.find(s => s.id === targetId || s.id?.trim() === (targetId || '').trim())
+        if (match) {
+          setActiveId(match.id)
+        } else if (fetchedSessions[0]?.id) {
+          setActiveId(fetchedSessions[0].id)
         }
       }
     }).catch(() => {})
@@ -1333,71 +1316,6 @@ export default function ChatPage() {
       setActiveId(sessionUrlParam)
     }
   }, [sessionUrlParam])
-
-  // Auto-attach document when navigating from Documents page via 'Open in Chat'
-  useEffect(() => {
-    if (attachDocParam && attachDocNameParam) {
-      const doc = { id: attachDocParam, fileName: decodeURIComponent(attachDocNameParam) }
-      setContextDocs(prev => {
-        const alreadyAttached = prev.some(d => d.id === doc.id)
-        return alreadyAttached ? prev : [...prev, doc]
-      })
-      // Expand the vault panel so user can see attached docs
-      setVaultCollapsed(false)
-    }
-  }, [attachDocParam, attachDocNameParam])
-
-  useEffect(() => {
-    if (highlightParam && activeSession?.messages?.length > 0) {
-      setTimeout(() => {
-        const decoded = decodeURIComponent(highlightParam).toLowerCase()
-        const foundIdx = activeSession.messages.findIndex(m => m.content?.toLowerCase().includes(decoded))
-        if (foundIdx !== -1) {
-          const el = document.getElementById(`msg-bubble-${foundIdx}`)
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }
-      }, 300)
-    }
-  }, [highlightParam, activeSession])
-
-  // Always fetch full messages from backend for activeId
-  useEffect(() => {
-    if (!activeId) return
-
-    chatApi.conversationHistory(activeId).then(res => {
-      let items = (res?.data && Array.isArray(res.data)) ? res.data : []
-
-      if (items.length > 0) {
-        const loadedMsgs = []
-        items.forEach(h => {
-          const itemMode = getEffectivePromptType(h)
-          const formattedTime = h.createdAt
-            ? new Date(h.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : '00:00'
-          if (h.prompt) {
-            loadedMsgs.push({ role: 'user', content: h.prompt, time: formattedTime, promptType: itemMode })
-          }
-          if (h.response) {
-            loadedMsgs.push({ role: 'assistant', content: h.response, time: formattedTime, promptType: itemMode })
-          }
-        })
-
-        setSessions(prev => {
-          const title = items[0]?.prompt ? items[0].prompt.slice(0, 28) : 'General Chat'
-          const exists = prev.some(s => s.id === activeId)
-          let updated
-          if (exists) {
-            updated = prev.map(s => s.id === activeId ? { ...s, name: (s.name === 'General Chat' || !s.name) ? title : s.name, messages: loadedMsgs } : s)
-          } else {
-            const newSess = { id: activeId, name: title, messages: loadedMsgs, createdAt: new Date().toISOString() }
-            updated = [newSess, ...prev]
-          }
-          saveSessions(SESSIONS_STORAGE_KEY, updated)
-          return updated
-        })
-      }
-    }).catch(() => {})
-  }, [activeId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
