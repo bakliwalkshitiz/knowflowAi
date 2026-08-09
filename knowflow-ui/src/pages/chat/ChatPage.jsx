@@ -218,18 +218,18 @@ function parseFlashcards(text) {
     if (jsonMatch) {
       const raw = jsonMatch[1] || jsonMatch[0]
       const parsed = JSON.parse(raw.trim())
-      if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].front || parsed[0].question)) {
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].front && parsed[0].back) {
         return parsed.map((c, i) => ({
           id: c.id || i + 1,
-          front: c.front || c.question || `Question ${i + 1}`,
-          back: c.back || c.answer || c.explanation || 'Answer',
+          front: c.front || `Flashcard ${i + 1}`,
+          back: c.back || 'Answer',
         }))
       }
     }
   } catch (e) { }
 
   const cards = []
-  const frontBackRegex = /(?:Card\s*\d+:?|Q\d+:?|Front:?|\d+\.\s*Front:?)\s*([\s\S]*?)(?:Back:?|A\d+:?|Answer:?|\d+\.\s*Back:?)\s*([\s\S]*?)(?=(?:Card\s*\d+:?|Q\d+:?|Front:?|\d+\.\s*Front:?|$))/gi
+  const frontBackRegex = /(?:Card\s*\d+:?|Front:?|\d+\.\s*Front:?)\s*([\s\S]*?)(?:Back:?|\d+\.\s*Back:?)\s*([\s\S]*?)(?=(?:Card\s*\d+:?|Front:?|\d+\.\s*Front:?|$))/gi
   let match
   while ((match = frontBackRegex.exec(text)) !== null) {
     if (match[1] && match[2] && match[1].trim().length > 0) {
@@ -268,16 +268,15 @@ function FlashcardDeck({ initialCards }) {
 
   return (
     <div style={{ marginTop: 12, marginBottom: 12, maxWidth: 640 }}>
-      {/* Top Banner Button matching User Screenshot */}
+      {/* Top Banner Header */}
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
-          padding: '8px 24px', borderRadius: 24, background: '#3b82f6',
-          color: '#ffffff', fontSize: 14, fontWeight: 700,
-          boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
+          padding: '8px 20px', borderRadius: 24, background: 'rgba(251, 146, 60, 0.15)',
+          border: '1px solid rgba(251, 146, 60, 0.4)', color: '#fb923c', fontSize: 13, fontWeight: 700,
         }}>
-          <span>Generate Flashcards</span>
-          <ChevronDown size={18} style={{ strokeWidth: 3 }} />
+          <BookOpen size={16} />
+          <span>Study Flashcards</span>
         </div>
       </div>
 
@@ -440,12 +439,180 @@ function FlashcardDeck({ initialCards }) {
   )
 }
 
-function MessageContent({ text }) {
+/* ────────────────── QUIZ PARSER & INTERACTIVE COMPONENT ────────────────── */
+function parseQuiz(text) {
+  if (!text) return null
+  try {
+    const jsonMatch = text.match(/```json([\s\S]*?)```/) || text.match(/\[\s*\{[\s\S]*\}\s*\]/)
+    if (jsonMatch) {
+      const raw = jsonMatch[1] || jsonMatch[0]
+      const parsed = JSON.parse(raw.trim())
+      if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].question || parsed[0].q)) {
+        return parsed.map((q, i) => ({
+          id: i + 1,
+          question: q.question || q.q || `Question ${i + 1}`,
+          answer: q.answer || q.correctAnswer || q.explanation || 'Answer',
+        }))
+      }
+    }
+  } catch (e) { }
+
+  const questions = []
+  const qRegex = /(?:Q\d+:?|Question\s*\d+:?|\d+\.\s*Question:?)\s*([\s\S]*?)(?:A\d+:?|Answer:?|Explanation:?)\s*([\s\S]*?)(?=(?:Q\d+:?|Question\s*\d+:?|\d+\.\s*Question:?|$))/gi
+  let match
+  while ((match = qRegex.exec(text)) !== null) {
+    if (match[1] && match[2] && match[1].trim().length > 0) {
+      questions.push({
+        id: questions.length + 1,
+        question: match[1].trim(),
+        answer: match[2].trim(),
+      })
+    }
+  }
+  return questions.length > 0 ? questions : null
+}
+
+function QuizDeck({ initialQuestions }) {
+  const [questions] = useState(initialQuestions)
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [showAnswer, setShowAnswer] = useState(false)
+
+  if (!questions || questions.length === 0) return null
+
+  const currentQ = questions[currentIndex] || questions[0]
+  const total = questions.length
+
+  return (
+    <div style={{ marginTop: 12, marginBottom: 12, maxWidth: 640 }}>
+      {/* Top Banner Header */}
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '8px 20px', borderRadius: 24, background: 'rgba(52, 211, 153, 0.15)',
+          border: '1px solid rgba(52, 211, 153, 0.4)', color: '#34d399', fontSize: 13, fontWeight: 700,
+        }}>
+          <HelpCircle size={16} />
+          <span>Interactive Quiz</span>
+        </div>
+      </div>
+
+      {/* Question & Answer Card */}
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 16, overflow: 'hidden', marginBottom: 14,
+        boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+      }}>
+        <div style={{
+          background: 'var(--card)', padding: '10px 16px', borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>
+            Question {currentIndex + 1} of {total}
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--muted)', padding: '2px 8px', borderRadius: 6, background: 'var(--surface)', border: '1px solid var(--border-sub)' }}>
+            Quiz Mode
+          </span>
+        </div>
+
+        <div style={{ padding: 20 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', margin: '0 0 16px', lineHeight: 1.5 }}>
+            {currentQ.question}
+          </p>
+
+          <button
+            onClick={() => setShowAnswer(prev => !prev)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
+              borderRadius: 8, border: '1px solid var(--accent-bd)', background: 'var(--accent-bg)',
+              color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              marginBottom: showAnswer ? 12 : 0, transition: 'all 0.15s',
+            }}
+          >
+            {showAnswer ? 'Hide Answer' : 'Reveal Answer & Explanation'}
+          </button>
+
+          {showAnswer && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              style={{
+                padding: '12px 16px', borderRadius: 10, background: 'rgba(52, 211, 153, 0.08)',
+                border: '1px solid rgba(52, 211, 153, 0.3)', color: 'var(--text)', fontSize: 13, lineHeight: 1.5,
+              }}
+            >
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#34d399', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                Answer:
+              </span>
+              {currentQ.answer}
+            </motion.div>
+          )}
+        </div>
+      </div>
+
+      {/* Navigation Controls */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 14px', borderRadius: 12, background: 'var(--surface)',
+        border: '1px solid var(--border-sub)',
+      }}>
+        <button
+          onClick={() => { setCurrentIndex(prev => Math.max(0, prev - 1)); setShowAnswer(false) }}
+          disabled={currentIndex === 0}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px',
+            borderRadius: 8, border: '1px solid var(--border)', background: 'var(--card)',
+            color: currentIndex === 0 ? 'var(--subtle)' : 'var(--text)', fontSize: 12,
+            fontWeight: 600, cursor: currentIndex === 0 ? 'not-allowed' : 'pointer',
+            opacity: currentIndex === 0 ? 0.5 : 1, transition: 'all 0.15s',
+          }}
+        >
+          <ChevronLeft size={14} /> Previous Question
+        </button>
+
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>
+          {currentIndex + 1} / {total}
+        </span>
+
+        <button
+          onClick={() => { setCurrentIndex(prev => Math.min(total - 1, prev + 1)); setShowAnswer(false) }}
+          disabled={currentIndex === total - 1}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px',
+            borderRadius: 8, border: 'none', background: 'var(--accent)',
+            color: '#fff', fontSize: 12, fontWeight: 600,
+            cursor: currentIndex === total - 1 ? 'not-allowed' : 'pointer',
+            opacity: currentIndex === total - 1 ? 0.5 : 1, transition: 'all 0.15s',
+          }}
+        >
+          Next Question <ChevronRight size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function MessageContent({ text, promptType }) {
   if (!text) return null
 
-  const flashcards = parseFlashcards(text)
-  if (flashcards) {
-    return <FlashcardDeck initialCards={flashcards} />
+  // If message was generated in FLASHCARD mode or matches flashcard format
+  if (promptType === 'FLASHCARD') {
+    const flashcards = parseFlashcards(text)
+    if (flashcards) return <FlashcardDeck initialCards={flashcards} />
+  }
+
+  // If message was generated in QUIZ mode or matches quiz format
+  if (promptType === 'QUIZ') {
+    const quiz = parseQuiz(text)
+    if (quiz) return <QuizDeck initialQuestions={quiz} />
+  }
+
+  // Fallback checks for un-tagged messages
+  if (!promptType || promptType === 'CHAT') {
+    const flashcards = parseFlashcards(text)
+    if (flashcards) return <FlashcardDeck initialCards={flashcards} />
+
+    const quiz = parseQuiz(text)
+    if (quiz) return <QuizDeck initialQuestions={quiz} />
   }
 
   const sanitized = text
@@ -536,7 +703,7 @@ function MessageBubble({ msg, index, isHighlighted }) {
             ))}
           </div>
         )}
-        <MessageContent text={msg.content} />
+        <MessageContent text={msg.content} promptType={msg.promptType} />
         <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--subtle)' }}>{msg.time}</p>
       </div>
     </motion.div>
@@ -598,6 +765,55 @@ export default function ChatPage() {
   })
 
   const bottomRef = useRef(null)
+  const fileInputRef = useRef(null)
+
+  const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [docUploadError, setDocUploadError] = useState('')
+  const [docUploadSuccess, setDocUploadSuccess] = useState('')
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingDoc(true)
+    setDocUploadError('')
+    setDocUploadSuccess('')
+
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await documentApi.upload(fd)
+
+      const newDocId = res.data?.id || res.data?.documentId
+      const newDocName = res.data?.fileName || file.name
+
+      // Refresh documents list
+      const docsRes = await documentApi.getAll().catch(() => null)
+      if (docsRes?.data) {
+        const list = docsRes.data.map(normalizeDoc).filter(Boolean)
+        setDocuments(list)
+      }
+
+      // Auto attach to current context
+      if (newDocId) {
+        const newDocObj = { id: newDocId, fileName: newDocName }
+        setContextDocs(prev => {
+          const exists = prev.some(d => d.id === newDocObj.id)
+          return exists ? prev : [...prev, newDocObj]
+        })
+      }
+
+      setDocUploadSuccess(`"${file.name}" uploaded and attached to chat!`)
+      setTimeout(() => setDocUploadSuccess(''), 5000)
+    } catch (err) {
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to upload document.'
+      setDocUploadError(msg)
+      setTimeout(() => setDocUploadError(''), 7000)
+    } finally {
+      setUploadingDoc(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   const toggleSidebarCollapse = () => {
     setSidebarCollapsed(prev => {
@@ -766,6 +982,7 @@ export default function ChatPage() {
 
     setInput('')
     setContextDocs([])
+    setMode('CHAT')
     setLoading(true)
 
     try {
@@ -891,6 +1108,43 @@ export default function ChatPage() {
             </div>
           )}
 
+          {/* Upload Status Banners */}
+          {uploadingDoc && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '4px 10px', borderRadius: 6, background: 'rgba(96, 165, 250, 0.12)',
+              border: '1px solid rgba(96, 165, 250, 0.3)', color: '#60a5fa',
+              fontSize: 11, fontWeight: 500, marginBottom: 8,
+            }}>
+              <Loader2 size={12} className="animate-spin" />
+              <span>Uploading & embedding document...</span>
+            </div>
+          )}
+
+          {docUploadSuccess && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '4px 10px', borderRadius: 6, background: 'rgba(52, 211, 153, 0.12)',
+              border: '1px solid rgba(52, 211, 153, 0.3)', color: 'var(--success)',
+              fontSize: 11, fontWeight: 500, marginBottom: 8,
+            }}>
+              <Check size={12} />
+              <span>{docUploadSuccess}</span>
+            </div>
+          )}
+
+          {docUploadError && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '4px 10px', borderRadius: 6, background: 'rgba(248, 113, 113, 0.12)',
+              border: '1px solid rgba(248, 113, 113, 0.3)', color: 'var(--danger)',
+              fontSize: 11, fontWeight: 500, marginBottom: 8,
+            }}>
+              <AlertCircle size={12} />
+              <span>{docUploadError}</span>
+            </div>
+          )}
+
           {/* Attached Context Docs Pills */}
           {contextDocs.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
@@ -913,18 +1167,29 @@ export default function ChatPage() {
             </div>
           )}
 
+          {/* Hidden File Input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept=".pdf,.doc,.docx,.txt"
+            style={{ display: 'none' }}
+          />
+
           <form onSubmit={sendMessage} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <button
               type="button"
-              onClick={() => setShowDocPicker(prev => !prev)}
-              title="Attach documents from Vault"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingDoc}
+              title="Upload document from computer & attach to chat context"
               style={{
                 position: 'absolute', left: 12, background: 'none', border: 'none',
-                cursor: 'pointer', color: contextDocs.length > 0 ? 'var(--accent)' : 'var(--muted)',
+                cursor: uploadingDoc ? 'not-allowed' : 'pointer',
+                color: contextDocs.length > 0 ? 'var(--accent)' : 'var(--muted)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4, zIndex: 2,
               }}
             >
-              <Paperclip size={16} />
+              {uploadingDoc ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
             </button>
 
             <textarea
