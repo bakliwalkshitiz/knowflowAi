@@ -18,6 +18,13 @@ export function AuthProvider({ children }) {
   )
 
   const login = (userData, jwtToken) => {
+    // Clear any leftover sessions from a previously logged-in user
+    // so they don't bleed into the new user's session list
+    const previousUser = user
+    if (previousUser?.email && previousUser.email !== userData.email) {
+      localStorage.removeItem(`kf_sessions_${previousUser.email}`)
+    }
+
     setUser(userData)
     setToken(jwtToken)
 

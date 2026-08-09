@@ -92,8 +92,18 @@ public class DocumentService {
                 StandardCopyOption.REPLACE_EXISTING
         );
 
-        // Extract text
+        // Extract text — returns null if document is unreadable (scanned/image-based PDFs etc.)
         String extractedText = documentParser.extractText(filePath.toFile());
+
+        // Reject upload if no readable text could be extracted
+        if (extractedText == null || extractedText.isBlank()) {
+            // Clean up the saved file since we cannot use it
+            Files.deleteIfExists(filePath);
+            throw new IllegalArgumentException(
+                "Unable to extract readable text from \"" + originalFilename + "\". " +
+                "This may be a scanned/image-based PDF. Please upload a text-based PDF, DOCX, or TXT file."
+            );
+        }
 
         // Chunk document
         List<org.springframework.ai.document.Document> chunks =
@@ -129,17 +139,21 @@ public class DocumentService {
             chunk.getMetadata().put("uploadedAt", uploadedAt.toString());
         }
 
-        // Store embeddings asynchronously so upload HTTP response returns instantly (<1 second)
-        java.util.concurrent.CompletableFuture.runAsync(() -> {
+        // Store embeddings SYNCHRONOUSLY so they are immediately available in PGVector
+        // before this HTTP response returns — eliminates the race condition
+        if (!chunks.isEmpty()) {
             try {
                 vectorStore.add(chunks);
                 log.info("Stored {} chunks in PGVector for user '{}', document '{}' (id={})",
                         chunks.size(), currentUser.getEmail(), originalFilename, documentId);
             } catch (Exception ex) {
-                log.warn("Async vector store indexing skipped for document '{}' (id={}): {}",
+                log.warn("Vector store indexing failed for document '{}' (id={}): {}. " +
+                         "Chat context may be limited until document is re-indexed.",
                         originalFilename, documentId, ex.getMessage());
             }
-        });
+        } else {
+            log.warn("Document '{}' produced 0 chunks — skipping PGVector indexing.", originalFilename);
+        }
 
         return new UploadResponse(
                 document.getId().toString(),

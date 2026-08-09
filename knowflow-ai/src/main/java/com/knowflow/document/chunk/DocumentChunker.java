@@ -13,8 +13,10 @@ public class DocumentChunker {
             TokenTextSplitter.builder().build();
 
     public List<Document> chunk(String text) {
-        String safeText = (text == null || text.isBlank()) ? "Document content is empty." : text;
-        Document document = new Document(safeText);
+        if (text == null || text.isBlank()) {
+            return List.of();
+        }
+        Document document = new Document(text);
         List<Document> chunks = splitter.split(document);
         return (chunks != null && !chunks.isEmpty()) ? chunks : List.of(document);
     }

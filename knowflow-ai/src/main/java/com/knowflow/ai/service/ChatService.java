@@ -157,6 +157,9 @@ public class ChatService {
         }
 
         try {
+            // Scope the conversation ID to the current user to prevent cross-account memory leakage
+            String scopedConversationId = userIdStr + ":" + (conversationId != null ? conversationId : "default");
+
             String response = chatClient
                     .prompt()
                     .system("""
@@ -182,7 +185,7 @@ public class ChatService {
                                - Do NOT include any introductory meta tags, prefixes, or disclaimers (such as '[Applied Mode: ...]').
                             """)
                     .user(finalPrompt)
-                    .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
+                    .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, scopedConversationId))
                     .call()
                     .content();
 

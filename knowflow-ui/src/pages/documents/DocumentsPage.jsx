@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  Upload, FileText, Search, Trash2, Download,
-  Pencil, X, Check, CloudUpload, AlertCircle, Loader2
+import { Upload, FileText, Search, Trash2, Download,
+  Pencil, X, Check, CloudUpload, AlertCircle, Loader2, MessageSquare
 } from 'lucide-react'
 import { documentApi } from '../../api/client'
+import { useNavigate } from 'react-router-dom'
 
 const css = {
   card: { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14 },
@@ -61,7 +61,7 @@ function DropZone({ onUpload, uploading }) {
   )
 }
 
-function DocCard({ doc, onDelete, onRename, onDownload }) {
+function DocCard({ doc, onDelete, onRename, onDownload, onOpenInChat }) {
   const [renaming, setRenaming] = useState(false)
   const [newName, setNewName] = useState(doc.fileName)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -157,16 +157,34 @@ function DocCard({ doc, onDelete, onRename, onDownload }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
+      {/* File metadata */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
         <span>{doc.fileSize ? (doc.fileSize / 1024).toFixed(1) : 0} KB</span>
         <span>{doc.chunkCount || 0} chunks</span>
         <span>{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : ''}</span>
       </div>
+
+      {/* Open in Chat button */}
+      <button
+        onClick={() => onOpenInChat(doc)}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          width: '100%', padding: '7px 10px', borderRadius: 8,
+          border: '1px solid var(--accent-bd)', background: 'var(--accent-bg)',
+          color: 'var(--accent)', fontSize: 11, fontWeight: 600,
+          cursor: 'pointer', transition: 'all 0.15s',
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(79, 114, 247, 0.2)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'var(--accent-bg)'}
+      >
+        <MessageSquare size={12} /> Open in Chat
+      </button>
     </motion.div>
   )
 }
 
 export default function DocumentsPage() {
+  const navigate = useNavigate()
   const [docs, setDocs] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -231,6 +249,10 @@ export default function DocumentsPage() {
       const a = document.createElement('a'); a.href = url; a.download = fileName; a.click()
       URL.revokeObjectURL(url)
     } catch { setError('Download failed.') }
+  }
+
+  const handleOpenInChat = (doc) => {
+    navigate(`/chat?attachDoc=${doc.id}&attachDocName=${encodeURIComponent(doc.fileName)}`)
   }
 
   return (
@@ -299,7 +321,7 @@ export default function DocumentsPage() {
         <AnimatePresence>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
             {docs.map(doc => (
-              <DocCard key={doc.id} doc={doc} onDelete={handleDelete} onRename={handleRename} onDownload={handleDownload} />
+              <DocCard key={doc.id} doc={doc} onDelete={handleDelete} onRename={handleRename} onDownload={handleDownload} onOpenInChat={handleOpenInChat} />
             ))}
           </div>
         </AnimatePresence>

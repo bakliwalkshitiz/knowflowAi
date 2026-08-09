@@ -40,42 +40,30 @@ const DEFAULT_PROMPTS = {
   MINDMAP: 'Create a structured mind map representation of the main topics.',
 }
 
+function createDefaultSession() {
+  return {
+    id: `conv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: 'General Chat',
+    messages: [],
+    createdAt: new Date().toISOString()
+  }
+}
+
 function loadSessions(storageKey) {
   try {
     const raw = localStorage.getItem(storageKey)
 
     if (!raw) {
-      return [
-        {
-          id: 'default',
-          name: 'General Chat',
-          messages: [],
-          createdAt: new Date().toISOString()
-        }
-      ]
+      return [createDefaultSession()]
     }
 
     const parsed = JSON.parse(raw)
 
     return Array.isArray(parsed) && parsed.length > 0
       ? parsed
-      : [
-        {
-          id: 'default',
-          name: 'General Chat',
-          messages: [],
-          createdAt: new Date().toISOString()
-        }
-      ]
+      : [createDefaultSession()]
   } catch {
-    return [
-      {
-        id: 'default',
-        name: 'General Chat',
-        messages: [],
-        createdAt: new Date().toISOString()
-      }
-    ]
+    return [createDefaultSession()]
   }
 }
 
@@ -585,6 +573,8 @@ export default function ChatPage() {
   const [searchParams] = useSearchParams()
   const sessionUrlParam = searchParams.get('session')
   const highlightParam = searchParams.get('highlight')
+  const attachDocParam = searchParams.get('attachDoc')
+  const attachDocNameParam = searchParams.get('attachDocName')
 
   const [sessions, setSessions] = useState(() =>
     loadSessions(SESSIONS_STORAGE_KEY)
@@ -658,6 +648,19 @@ export default function ChatPage() {
     }
   }, [sessionUrlParam])
 
+  // Auto-attach document when navigating from Documents page via 'Open in Chat'
+  useEffect(() => {
+    if (attachDocParam && attachDocNameParam) {
+      const doc = { id: attachDocParam, fileName: decodeURIComponent(attachDocNameParam) }
+      setContextDocs(prev => {
+        const alreadyAttached = prev.some(d => d.id === doc.id)
+        return alreadyAttached ? prev : [...prev, doc]
+      })
+      // Expand the vault panel so user can see attached docs
+      setVaultCollapsed(false)
+    }
+  }, [attachDocParam, attachDocNameParam])
+
   useEffect(() => {
     if (highlightParam && activeSession?.messages?.length > 0) {
       setTimeout(() => {
@@ -713,7 +716,7 @@ export default function ChatPage() {
 
   const deleteSession = (id) => {
     const updated = sessions.filter(s => s.id !== id)
-    const next = updated.length > 0 ? updated : [{ id: 'default', name: 'General Chat', messages: [], createdAt: new Date().toISOString() }]
+    const next = updated.length > 0 ? updated : [createDefaultSession()]
     setSessions(next)
     saveSessions(SESSIONS_STORAGE_KEY, next)
     if (activeId === id) setActiveId(next[0].id)

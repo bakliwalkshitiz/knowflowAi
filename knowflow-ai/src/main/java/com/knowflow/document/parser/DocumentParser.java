@@ -62,8 +62,8 @@ public class DocumentParser {
             }
         }
 
-        log.warn("Could not extract readable text from document '{}'", file.getName());
-        return "Document File: " + file.getName() + "\n(Unable to extract readable text from document content)";
+        log.warn("Could not extract readable text from document '{}' — returning null", file.getName());
+        return null;
     }
 
     private String sanitizeText(String raw) {

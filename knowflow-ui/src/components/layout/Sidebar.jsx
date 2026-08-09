@@ -16,6 +16,15 @@ const navItems = [
   { icon: Settings, label: 'Settings', path: '/settings' },
 ]
 
+function createDefaultSession() {
+  return {
+    id: `conv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: 'General Chat',
+    messages: [],
+    createdAt: new Date().toISOString()
+  }
+}
+
 function loadSessions(storageKey) {
   try {
     const raw = localStorage.getItem(storageKey)
@@ -29,14 +38,7 @@ function loadSessions(storageKey) {
     }
   } catch { }
 
-  return [
-    {
-      id: `conv-${Date.now()}`,
-      name: 'General Chat',
-      messages: [],
-      createdAt: new Date().toISOString()
-    }
-  ]
+  return [createDefaultSession()]
 }
 
 function saveSessions(storageKey, sessions) {
@@ -117,7 +119,7 @@ export default function Sidebar() {
   const handleDeleteSession = (e, id) => {
     e.stopPropagation()
     const updated = sessions.filter(s => s.id !== id)
-    const next = updated.length > 0 ? updated : [{ id: `conv-${Date.now()}`, name: 'General Chat', messages: [], createdAt: new Date().toISOString() }]
+    const next = updated.length > 0 ? updated : [createDefaultSession()]
     setSessions(next)
     saveSessions(STORAGE_KEY, next)
     if (activeSessionIdFromUrl === id || location.pathname.startsWith('/chat')) {

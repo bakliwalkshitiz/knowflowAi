@@ -6,7 +6,6 @@ import {
 } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { chatApi } from '../../api/client'
-import { useAuth } from '../../context/AuthContext'
 
 const MODE_BADGES = {
   SUMMARY: { label: 'Summary', color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.12)', border: 'rgba(96, 165, 250, 0.3)' },
@@ -56,14 +55,8 @@ export function parseIsoDate(s) {
 
 export default function HistoryPage() {
 
-  const { user } = useAuth()
-
-  const STORAGE_KEY =
-    `kf_sessions_${user?.email || 'guest'}`
-
   const navigate = useNavigate()
 
-  const [searchParams] = useSearchParams()
   const [searchParams] = useSearchParams()
   const modeFilterParam = searchParams.get('mode') || searchParams.get('type')
 
@@ -90,63 +83,31 @@ export default function HistoryPage() {
     }
   }, [modeFilterParam])
 
-  // Read local chat sessions
-  const localSessions = (() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      const parsed = stored ? JSON.parse(stored) : []
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  })()
-
+  // Build sessions purely from backend history — fully user-authenticated, no localStorage leakage
   const safeBackendHistory = Array.isArray(backendHistory) ? backendHistory : []
 
-  // Build sessions map
+  // Group backend history items by conversationId to build session cards
   const sessionMap = new Map()
 
-  // 1. Populate from localSessions
-  localSessions.forEach(s => {
-    if (s && s.id) {
-      sessionMap.set(s.id, {
-        id: s.id,
-        title: s.name || 'Chat Session',
-        messages: Array.isArray(s.messages) ? s.messages : [],
-        lastAt: s.createdAt || new Date().toISOString(),
-      })
-    }
-  })
-
-  // 2. Merge backend history items into matching sessions and attach promptType
   safeBackendHistory.forEach(item => {
     if (!item) return
-    const convId = item.conversationId || 'default'
+    const convId = item.conversationId || 'unknown'
     const itemMode = getEffectivePromptType(item)
 
     if (sessionMap.has(convId)) {
       const sess = sessionMap.get(convId)
-      let matched = false
-      sess.messages.forEach(m => {
-        if (m.content === item.prompt || m.content === item.response) {
-          m.promptType = itemMode
-          matched = true
-        }
-      })
-      if (!matched) {
-        if (item.prompt) sess.messages.push({ role: 'user', content: item.prompt, time: item.createdAt, promptType: itemMode })
-        if (item.response) sess.messages.push({ role: 'ai', content: item.response, time: item.createdAt, promptType: itemMode })
-      }
+      if (item.prompt) sess.messages.push({ role: 'user', content: item.prompt, time: item.createdAt, promptType: itemMode })
+      if (item.response) sess.messages.push({ role: 'ai', content: item.response, time: item.createdAt, promptType: itemMode })
       if (item.createdAt && new Date(parseIsoDate(item.createdAt)) > new Date(parseIsoDate(sess.lastAt))) {
         sess.lastAt = item.createdAt
       }
     } else {
       sessionMap.set(convId, {
         id: convId,
-        title: item.prompt?.slice(0, 30) || 'Chat Session',
+        title: item.prompt?.slice(0, 40) || 'Chat Session',
         messages: [
-          { role: 'user', content: item.prompt, time: item.createdAt, promptType: itemMode },
-          { role: 'ai', content: item.response, time: item.createdAt, promptType: itemMode },
+          ...(item.prompt ? [{ role: 'user', content: item.prompt, time: item.createdAt, promptType: itemMode }] : []),
+          ...(item.response ? [{ role: 'ai', content: item.response, time: item.createdAt, promptType: itemMode }] : []),
         ],
         lastAt: item.createdAt || new Date().toISOString(),
       })
