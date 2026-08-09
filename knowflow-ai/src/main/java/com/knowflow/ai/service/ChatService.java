@@ -88,72 +88,70 @@ public class ChatService {
         String basePrompt = promptTemplateFactory.buildPrompt(type, message);
         String finalPrompt = basePrompt;
 
-        // Perform strict vector similarity search on uploaded documents
-        try {
-            var b = new FilterExpressionBuilder();
-            Filter.Expression filterExpression = null;
+        // Perform strict vector similarity search ONLY when documents are explicitly attached to the prompt
+        if (documentIds != null && !documentIds.isEmpty()) {
+            try {
+                var b = new FilterExpressionBuilder();
+                Filter.Expression filterExpression;
 
-            if (documentIds != null && !documentIds.isEmpty()) {
                 if (documentIds.size() == 1) {
                     filterExpression = b.eq("documentId", documentIds.get(0)).build();
                 } else {
                     filterExpression = b.in("documentId", documentIds.toArray()).build();
                 }
-            } else {
-                filterExpression = b.eq("userId", userIdStr).build();
-            }
 
-            SearchRequest searchRequest = SearchRequest.builder()
-                    .query((message != null && !message.isBlank()) ? message : "overview summary key points notes")
-                    .topK(10)
-                    .filterExpression(filterExpression)
-                    .build();
+                SearchRequest searchRequest = SearchRequest.builder()
+                        .query((message != null && !message.isBlank()) ? message : "overview summary key points notes")
+                        .topK(10)
+                        .filterExpression(filterExpression)
+                        .build();
 
-            List<org.springframework.ai.document.Document> matchingDocs = vectorStore.similaritySearch(searchRequest);
+                List<org.springframework.ai.document.Document> matchingDocs = vectorStore.similaritySearch(searchRequest);
 
-            // Auto-heal: If empty and specific documentIds are attached, auto-reindex them on-the-fly!
-            if ((matchingDocs == null || matchingDocs.isEmpty()) && documentIds != null && !documentIds.isEmpty()) {
-                log.info("PGVector returned 0 chunks for documentIds {}. Triggering auto-reindex...", documentIds);
-                for (String docIdStr : documentIds) {
-                    try {
-                        documentService.reindexDocument(UUID.fromString(docIdStr));
-                    } catch (Exception ex) {
-                        log.warn("Auto-reindex error for {}: {}", docIdStr, ex.getMessage());
-                    }
-                }
-                matchingDocs = vectorStore.similaritySearch(searchRequest);
-            }
-
-            String context = "";
-            if (matchingDocs != null && !matchingDocs.isEmpty()) {
-                context = matchingDocs.stream()
-                        .map(org.springframework.ai.document.Document::getText)
-                        .filter(t -> t != null && !t.isBlank())
-                        .collect(Collectors.joining("\n---\n"));
-            }
-
-            // Fallback: If vector search returns 0 chunks for attached documents (e.g. short/numerical prompts like "20" or "quiz"), extract document text directly
-            if ((context == null || context.isBlank()) && documentIds != null && !documentIds.isEmpty()) {
-                StringBuilder fallbackSb = new StringBuilder();
-                for (String docIdStr : documentIds) {
-                    try {
-                        String docText = documentService.getDocumentText(UUID.fromString(docIdStr));
-                        if (docText != null && !docText.isBlank()) {
-                            fallbackSb.append(docText).append("\n---\n");
+                // Auto-heal: If empty and specific documentIds are attached, auto-reindex them on-the-fly!
+                if (matchingDocs == null || matchingDocs.isEmpty()) {
+                    log.info("PGVector returned 0 chunks for documentIds {}. Triggering auto-reindex...", documentIds);
+                    for (String docIdStr : documentIds) {
+                        try {
+                            documentService.reindexDocument(UUID.fromString(docIdStr));
+                        } catch (Exception ex) {
+                            log.warn("Auto-reindex error for {}: {}", docIdStr, ex.getMessage());
                         }
-                    } catch (Exception ex) {
-                        log.warn("Direct document text extraction warning for docId {}: {}", docIdStr, ex.getMessage());
                     }
+                    matchingDocs = vectorStore.similaritySearch(searchRequest);
                 }
-                context = fallbackSb.toString();
-            }
 
-            if (context != null && !context.isBlank()) {
-                finalPrompt = basePrompt + "\n\n--- STRICT DOCUMENT CONTEXT FROM ATTACHED FILES ---\n" + context + "\n--- END CONTEXT ---";
-                log.info("Appended document context for documentIds {} in conversation '{}'", documentIds, conversationId);
+                String context = "";
+                if (matchingDocs != null && !matchingDocs.isEmpty()) {
+                    context = matchingDocs.stream()
+                            .map(org.springframework.ai.document.Document::getText)
+                            .filter(t -> t != null && !t.isBlank())
+                            .collect(Collectors.joining("\n---\n"));
+                }
+
+                // Fallback: If vector search returns 0 chunks for attached documents (e.g. short/numerical prompts like "20" or "quiz"), extract document text directly
+                if (context == null || context.isBlank()) {
+                    StringBuilder fallbackSb = new StringBuilder();
+                    for (String docIdStr : documentIds) {
+                        try {
+                            String docText = documentService.getDocumentText(UUID.fromString(docIdStr));
+                            if (docText != null && !docText.isBlank()) {
+                                fallbackSb.append(docText).append("\n---\n");
+                            }
+                        } catch (Exception ex) {
+                            log.warn("Direct document text extraction warning for docId {}: {}", docIdStr, ex.getMessage());
+                        }
+                    }
+                    context = fallbackSb.toString();
+                }
+
+                if (context != null && !context.isBlank()) {
+                    finalPrompt = basePrompt + "\n\n--- STRICT DOCUMENT CONTEXT FROM ATTACHED FILES ---\n" + context + "\n--- END CONTEXT ---";
+                    log.info("Appended document context for documentIds {} in conversation '{}'", documentIds, conversationId);
+                }
+            } catch (Exception e) {
+                log.warn("Vector similarity search warning for query '{}': {}", message, e.getMessage());
             }
-        } catch (Exception e) {
-            log.warn("Vector similarity search warning for query '{}': {}", message, e.getMessage());
         }
 
         try {
