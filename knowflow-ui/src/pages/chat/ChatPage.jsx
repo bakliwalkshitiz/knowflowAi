@@ -32,12 +32,12 @@ const MODES = [
 ]
 
 const DEFAULT_PROMPTS = {
-  SUMMARY: 'Summarize the uploaded document concisely in key bullet points.',
+  SUMMARY: 'Summarize the document or topic concisely in key bullet points.',
   SYSTEM_DESIGN: 'Generate a complete System Design document including LLD (Mermaid classDiagram) and HLD (Mermaid graph TD architecture diagram).',
-  FLASHCARD: 'Generate 5 to 10 high quality flashcards covering the key concepts from the document.',
-  QUIZ: 'Generate a 5-question multiple choice quiz with correct answers and explanations.',
+  FLASHCARD: 'Generate 5 to 10 high quality flashcards covering the key concepts.',
+  QUIZ: 'Generate 5 interactive quiz questions with correct answers and explanations.',
   INTERVIEW: 'Generate 5 mock interview questions with expert sample answers.',
-  MINDMAP: 'Create a structured mind map representation of the main topics.',
+  MINDMAP: 'Generate a visual Mind Map diagram (using Mermaid mindmap syntax) with central topic, main branches, and entity attributes.',
 }
 
 function createDefaultSession() {
