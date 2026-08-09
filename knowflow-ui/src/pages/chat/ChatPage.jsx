@@ -1360,6 +1360,45 @@ export default function ChatPage() {
     }
   }, [highlightParam, activeSession])
 
+  // Always fetch full messages from backend for activeId
+  useEffect(() => {
+    if (!activeId) return
+
+    chatApi.conversationHistory(activeId).then(res => {
+      let items = (res?.data && Array.isArray(res.data)) ? res.data : []
+
+      if (items.length > 0) {
+        const loadedMsgs = []
+        items.forEach(h => {
+          const itemMode = getEffectivePromptType(h)
+          const formattedTime = h.createdAt
+            ? new Date(h.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : '00:00'
+          if (h.prompt) {
+            loadedMsgs.push({ role: 'user', content: h.prompt, time: formattedTime, promptType: itemMode })
+          }
+          if (h.response) {
+            loadedMsgs.push({ role: 'assistant', content: h.response, time: formattedTime, promptType: itemMode })
+          }
+        })
+
+        setSessions(prev => {
+          const title = items[0]?.prompt ? items[0].prompt.slice(0, 28) : 'General Chat'
+          const exists = prev.some(s => s.id === activeId)
+          let updated
+          if (exists) {
+            updated = prev.map(s => s.id === activeId ? { ...s, name: (s.name === 'General Chat' || !s.name) ? title : s.name, messages: loadedMsgs } : s)
+          } else {
+            const newSess = { id: activeId, name: title, messages: loadedMsgs, createdAt: new Date().toISOString() }
+            updated = [newSess, ...prev]
+          }
+          saveSessions(SESSIONS_STORAGE_KEY, updated)
+          return updated
+        })
+      }
+    }).catch(() => {})
+  }, [activeId])
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [activeSession?.messages, loading])
