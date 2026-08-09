@@ -1098,7 +1098,11 @@ function MessageBubble({ msg, index, isHighlighted }) {
             ))}
           </div>
         )}
-        <MessageContent text={msg.content} promptType={msg.promptType} />
+        {isUser ? (
+          <p style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content}</p>
+        ) : (
+          <MessageContent text={msg.content} promptType={msg.promptType} />
+        )}
         <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--subtle)' }}>{msg.time}</p>
       </div>
     </motion.div>
