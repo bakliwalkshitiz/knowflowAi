@@ -157,8 +157,9 @@ public class ChatService {
         }
 
         try {
-            // Scope the conversation ID to the current user to prevent cross-account memory leakage
-            String scopedConversationId = userIdStr + ":" + (conversationId != null ? conversationId : "default");
+            // Scope the conversation ID to the current user with a deterministic 36-char UUID to fit SPRING_AI_CHAT_MEMORY VARCHAR(36) column
+            String rawScope = userIdStr + ":" + (conversationId != null ? conversationId : "default");
+            String scopedConversationId = UUID.nameUUIDFromBytes(rawScope.getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
 
             String response = chatClient
                     .prompt()
