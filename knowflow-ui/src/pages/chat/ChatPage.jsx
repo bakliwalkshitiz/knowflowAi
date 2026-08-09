@@ -1260,6 +1260,9 @@ export default function ChatPage() {
   // On mount or user change, fetch entire chat history from backend database to populate sessions
   useEffect(() => {
     if (!user) return
+
+    const targetActiveId = sessionUrlParam || activeId
+
     chatApi.history().then(res => {
       if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
         const sessionMap = new Map()
@@ -1302,9 +1305,22 @@ export default function ChatPage() {
 
         const fetchedSessions = Array.from(sessionMap.values())
         if (fetchedSessions.length > 0) {
-          setSessions(fetchedSessions)
-          saveSessions(SESSIONS_STORAGE_KEY, fetchedSessions)
-          if (!sessionUrlParam) {
+          setSessions(prev => {
+            const mergedMap = new Map()
+            fetchedSessions.forEach(s => mergedMap.set(s.id, s))
+            prev.forEach(s => {
+              if (s.messages && s.messages.length > 0) {
+                mergedMap.set(s.id, s)
+              }
+            })
+            const merged = Array.from(mergedMap.values())
+            saveSessions(SESSIONS_STORAGE_KEY, merged)
+            return merged
+          })
+
+          if (targetActiveId) {
+            setActiveId(targetActiveId)
+          } else if (fetchedSessions[0]?.id) {
             setActiveId(fetchedSessions[0].id)
           }
         }
@@ -1314,8 +1330,6 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (sessionUrlParam) {
-      const current = loadSessions(SESSIONS_STORAGE_KEY)
-      setSessions(current)
       setActiveId(sessionUrlParam)
     }
   }, [sessionUrlParam])
@@ -1349,7 +1363,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (activeId && (!activeSession?.messages || activeSession.messages.length === 0)) {
       chatApi.conversationHistory(activeId).then(res => {
-        if (res?.data && res.data.length > 0) {
+        if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
           const loadedMsgs = []
           res.data.forEach(h => {
             const itemMode = getEffectivePromptType(h)
@@ -1370,6 +1384,7 @@ export default function ChatPage() {
               })
             }
           })
+
           setSessions(prev => {
             const exists = prev.some(s => s.id === activeId)
             let updated
