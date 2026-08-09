@@ -8,6 +8,9 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
+import { chatApi } from '../../api/client'
+import { getEffectivePromptType } from '../../pages/history/HistoryPage'
+
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: MessageSquare, label: 'Chat', path: '/chat' },
@@ -69,6 +72,47 @@ export default function Sidebar() {
 
   const [renamingId, setRenamingId] = useState(null)
   const [renameInput, setRenameInput] = useState('')
+
+  useEffect(() => {
+    if (!user) return
+    chatApi.history().then(res => {
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        const sessionMap = new Map()
+        res.data.forEach(item => {
+          if (!item) return
+          const convId = item.conversationId || 'unknown'
+          const itemMode = getEffectivePromptType(item)
+          const formattedTime = item.createdAt
+            ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : '00:00'
+
+          const userMsg = item.prompt ? { role: 'user', content: item.prompt, time: formattedTime, promptType: itemMode } : null
+          const botMsg = item.response ? { role: 'assistant', content: item.response, time: formattedTime, promptType: itemMode } : null
+
+          if (sessionMap.has(convId)) {
+            const sess = sessionMap.get(convId)
+            if (userMsg) sess.messages.push(userMsg)
+            if (botMsg) sess.messages.push(botMsg)
+          } else {
+            sessionMap.set(convId, {
+              id: convId,
+              name: item.prompt ? item.prompt.slice(0, 28) : 'General Chat',
+              messages: [
+                ...(userMsg ? [userMsg] : []),
+                ...(botMsg ? [botMsg] : []),
+              ],
+              createdAt: item.createdAt || new Date().toISOString(),
+            })
+          }
+        })
+        const fetched = Array.from(sessionMap.values())
+        if (fetched.length > 0) {
+          setSessions(fetched)
+          saveSessions(STORAGE_KEY, fetched)
+        }
+      }
+    }).catch(() => {})
+  }, [user, STORAGE_KEY])
 
   useEffect(() => {
     const sync = () => {
