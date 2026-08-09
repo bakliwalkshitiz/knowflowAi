@@ -1322,9 +1322,31 @@ export default function ChatPage() {
     }
   }, [sessionUrlParam])
 
+  // Auto-scroll to highlighted prompt message when arriving from History drill-down
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [activeSession?.messages, loading])
+    if (highlightParam && activeSession?.messages?.length > 0) {
+      const timer = setTimeout(() => {
+        const decoded = decodeURIComponent(highlightParam).toLowerCase().trim()
+        const foundIdx = activeSession.messages.findIndex(m => {
+          const content = (m.content || '').toLowerCase()
+          return content.includes(decoded) || (content.length > 5 && decoded.includes(content.slice(0, 30)))
+        })
+        if (foundIdx !== -1) {
+          const el = document.getElementById(`msg-bubble-${foundIdx}`)
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }
+      }, 350)
+      return () => clearTimeout(timer)
+    }
+  }, [highlightParam, activeSession?.messages])
+
+  useEffect(() => {
+    if (!highlightParam) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [activeSession?.messages, loading, highlightParam])
 
   const createNewChat = () => {
     const newId = `conv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -1483,14 +1505,20 @@ export default function ChatPage() {
             </div>
           ) : (
             <>
-              {activeSession.messages.map((m, idx) => (
-                <MessageBubble
-                  key={idx}
-                  msg={m}
-                  index={idx}
-                  isHighlighted={highlightParam && m.content?.toLowerCase().includes(decodeURIComponent(highlightParam).toLowerCase())}
-                />
-              ))}
+              {activeSession.messages.map((m, idx) => {
+                const decHighlight = highlightParam ? decodeURIComponent(highlightParam).toLowerCase().trim() : ''
+                const mContent = (m.content || '').toLowerCase()
+                const isMatch = Boolean(decHighlight && (mContent.includes(decHighlight) || (mContent.length > 5 && decHighlight.includes(mContent.slice(0, 30)))))
+
+                return (
+                  <MessageBubble
+                    key={idx}
+                    msg={m}
+                    index={idx}
+                    isHighlighted={isMatch}
+                  />
+                )
+              })}
               {loading && <TypingIndicator />}
               <div ref={bottomRef} />
             </>
