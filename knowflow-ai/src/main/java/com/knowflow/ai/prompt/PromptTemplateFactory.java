@@ -97,17 +97,26 @@ public class PromptTemplateFactory {
             return """
                     User Request / Topic: %s
 
-                    INSTRUCTIONS FOR QUIZ:
-                    Generate 5 interactive quiz questions based on the topic.
-                    Format each question clearly as:
-
-                    Question 1: [Question text]
-                    Answer: [Detailed answer and explanation]
-
-                    Question 2: [Question text]
-                    Answer: [Detailed answer and explanation]
-
-                    Do not print any disclaimers or mode headers.
+                    INSTRUCTIONS FOR INTERACTIVE QUIZ:
+                    Generate 5 multiple-choice quiz questions based on the topic.
+                    You MUST format your entire response as a single valid JSON array inside a ```json ``` codeblock:
+                    ```json
+                    [
+                      {
+                        "id": 1,
+                        "question": "What is ...?",
+                        "options": [
+                          "Option A text",
+                          "Option B text",
+                          "Option C text",
+                          "Option D text"
+                        ],
+                        "correctIndex": 1,
+                        "explanation": "Detailed explanation of why Option B is correct..."
+                      }
+                    ]
+                    ```
+                    Do not print any disclaimers or metadata outside the JSON block.
                     """.formatted(message);
         }
 
@@ -127,14 +136,26 @@ public class PromptTemplateFactory {
             return """
                     User Request / Topic: %s
 
-                    INSTRUCTIONS FOR INTERVIEW PREP:
-                    Generate 5 technical interview questions with model answers and key talking points:
-
-                    Question 1: [Interview Question]
-                    Answer: [Model Answer & Key Concepts to Mention]
-
-                    Question 2: [Interview Question]
-                    Answer: [Model Answer & Key Concepts to Mention]
+                    INSTRUCTIONS FOR MOCK INTERVIEW PREP:
+                    Generate 5 technical interview scenario questions for this topic.
+                    You MUST format your entire response as a single valid JSON array inside a ```json ``` codeblock:
+                    ```json
+                    [
+                      {
+                        "id": 1,
+                        "question": "How would you design ...?",
+                        "topic": "System Design & Architecture",
+                        "difficulty": "Medium",
+                        "modelAnswer": "Comprehensive model response explaining the architectural strategy...",
+                        "talkingPoints": [
+                          "Key concept 1 to mention",
+                          "Key concept 2 to mention",
+                          "Trade-offs and scaling considerations"
+                        ]
+                      }
+                    ]
+                    ```
+                    Do not print any disclaimers or metadata outside the JSON block.
                     """.formatted(message);
         }
 

@@ -451,7 +451,9 @@ function parseQuiz(text) {
         return parsed.map((q, i) => ({
           id: i + 1,
           question: q.question || q.q || `Question ${i + 1}`,
-          answer: q.answer || q.correctAnswer || q.explanation || 'Answer',
+          options: Array.isArray(q.options) ? q.options : (Array.isArray(q.choices) ? q.choices : []),
+          correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : (typeof q.correctOption === 'number' ? q.correctOption : 0),
+          explanation: q.explanation || q.answer || 'Detailed explanation of the correct option.',
         }))
       }
     }
@@ -465,7 +467,9 @@ function parseQuiz(text) {
       questions.push({
         id: questions.length + 1,
         question: match[1].trim(),
-        answer: match[2].trim(),
+        options: [],
+        correctIndex: 0,
+        explanation: match[2].trim(),
       })
     }
   }
@@ -475,12 +479,32 @@ function parseQuiz(text) {
 function QuizDeck({ initialQuestions }) {
   const [questions] = useState(initialQuestions)
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [showAnswer, setShowAnswer] = useState(false)
+  const [userAnswers, setUserAnswers] = useState({})
+  const [submitted, setSubmitted] = useState(false)
 
   if (!questions || questions.length === 0) return null
 
   const currentQ = questions[currentIndex] || questions[0]
   const total = questions.length
+  const hasOptions = Array.isArray(currentQ.options) && currentQ.options.length > 0
+
+  const handleSelectOption = (qId, optionIdx) => {
+    if (submitted) return
+    setUserAnswers(prev => ({ ...prev, [qId]: optionIdx }))
+  }
+
+  const calculateScore = () => {
+    let correct = 0
+    questions.forEach(q => {
+      if (userAnswers[q.id] === q.correctIndex) {
+        correct++
+      }
+    })
+    return correct
+  }
+
+  const score = calculateScore()
+  const percentage = Math.round((score / total) * 100)
 
   return (
     <div style={{ marginTop: 12, marginBottom: 12, maxWidth: 640 }}>
@@ -496,7 +520,44 @@ function QuizDeck({ initialQuestions }) {
         </div>
       </div>
 
-      {/* Question & Answer Card */}
+      {/* Submitted Score Summary Banner */}
+      {submitted && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          style={{
+            padding: '16px 20px', borderRadius: 16, marginBottom: 16,
+            background: 'linear-gradient(135deg, rgba(52, 211, 153, 0.15) 0%, rgba(16, 185, 129, 0.08) 100%)',
+            border: '1.5px solid rgba(52, 211, 153, 0.4)', display: 'flex', alignItems: 'center',
+            justify: 'space-between', gap: 16,
+          }}
+        >
+          <div>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Quiz Results
+            </span>
+            <h4 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: '2px 0 0' }}>
+              Score: {score} / {total} ({percentage}%)
+            </h4>
+            <p style={{ fontSize: 12, color: 'var(--muted)', margin: '2px 0 0' }}>
+              {percentage >= 80 ? '🎉 Excellent performance! Mastered this topic.' : percentage >= 50 ? '👍 Good attempt! Review the explanations below.' : '📚 Keep practicing! Re-read the explanations to improve.'}
+            </p>
+          </div>
+
+          <button
+            onClick={() => { setSubmitted(false); setUserAnswers({}) }}
+            style={{
+              padding: '8px 16px', borderRadius: 10, border: 'none',
+              background: '#34d399', color: '#000', fontSize: 12, fontWeight: 700,
+              cursor: 'pointer', flexShrink: 0, transition: 'all 0.15s',
+            }}
+          >
+            Retake Quiz
+          </button>
+        </motion.div>
+      )}
+
+      {/* Question Card */}
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderRadius: 16, overflow: 'hidden', marginBottom: 14,
@@ -510,7 +571,7 @@ function QuizDeck({ initialQuestions }) {
             Question {currentIndex + 1} of {total}
           </span>
           <span style={{ fontSize: 11, color: 'var(--muted)', padding: '2px 8px', borderRadius: 6, background: 'var(--surface)', border: '1px solid var(--border-sub)' }}>
-            Quiz Mode
+            {Object.keys(userAnswers).length} / {total} Answered
           </span>
         </div>
 
@@ -519,37 +580,305 @@ function QuizDeck({ initialQuestions }) {
             {currentQ.question}
           </p>
 
-          <button
-            onClick={() => setShowAnswer(prev => !prev)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
-              borderRadius: 8, border: '1px solid var(--accent-bd)', background: 'var(--accent-bg)',
-              color: 'var(--accent)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              marginBottom: showAnswer ? 12 : 0, transition: 'all 0.15s',
-            }}
-          >
-            {showAnswer ? 'Hide Answer' : 'Reveal Answer & Explanation'}
-          </button>
+          {/* Multiple Choice Options */}
+          {hasOptions ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+              {currentQ.options.map((opt, optIdx) => {
+                const isSelected = userAnswers[currentQ.id] === optIdx
+                const isCorrect = currentQ.correctIndex === optIdx
+                const optionLetter = String.fromCharCode(65 + optIdx)
 
-          {showAnswer && (
+                let bg = 'var(--card)'
+                let border = '1px solid var(--border)'
+                let textColor = 'var(--text)'
+
+                if (submitted) {
+                  if (isCorrect) {
+                    bg = 'rgba(52, 211, 153, 0.15)'
+                    border = '1.5px solid #34d399'
+                    textColor = '#34d399'
+                  } else if (isSelected && !isCorrect) {
+                    bg = 'rgba(248, 113, 113, 0.15)'
+                    border = '1.5px solid #f87171'
+                    textColor = '#f87171'
+                  }
+                } else if (isSelected) {
+                  bg = 'var(--accent-bg)'
+                  border = '1.5px solid var(--accent)'
+                  textColor = 'var(--accent)'
+                }
+
+                return (
+                  <div
+                    key={optIdx}
+                    onClick={() => handleSelectOption(currentQ.id, optIdx)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
+                      borderRadius: 12, background: bg, border: border,
+                      cursor: submitted ? 'default' : 'pointer', transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{
+                      width: 26, height: 26, borderRadius: 8, flexShrink: 0,
+                      background: isSelected ? (submitted ? (isCorrect ? '#34d399' : '#f87171') : 'var(--accent)') : 'var(--surface)',
+                      border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, fontWeight: 700, color: isSelected ? '#fff' : 'var(--muted)',
+                    }}>
+                      {optionLetter}
+                    </div>
+
+                    <span style={{ fontSize: 13, fontWeight: isSelected ? 600 : 400, color: textColor, flex: 1 }}>
+                      {opt}
+                    </span>
+
+                    {submitted && isCorrect && <Check size={16} style={{ color: '#34d399' }} />}
+                    {submitted && isSelected && !isCorrect && <X size={16} style={{ color: '#f87171' }} />}
+                  </div>
+                )
+              })}
+            </div>
+          ) : null}
+
+          {/* Explanation Banner (Shows if submitted or no options) */}
+          {(submitted || !hasOptions) && currentQ.explanation && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
               style={{
-                padding: '12px 16px', borderRadius: 10, background: 'rgba(52, 211, 153, 0.08)',
+                padding: '12px 16px', borderRadius: 12, background: 'rgba(52, 211, 153, 0.08)',
                 border: '1px solid rgba(52, 211, 153, 0.3)', color: 'var(--text)', fontSize: 13, lineHeight: 1.5,
               }}
             >
               <span style={{ fontSize: 11, fontWeight: 700, color: '#34d399', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                Answer:
+                Explanation & Answer:
               </span>
-              {currentQ.answer}
+              {currentQ.explanation}
             </motion.div>
           )}
         </div>
       </div>
 
-      {/* Navigation Controls */}
+      {/* Navigation & Submit Controls */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 14px', borderRadius: 12, background: 'var(--surface)',
+        border: '1px solid var(--border-sub)',
+      }}>
+        <button
+          onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
+          disabled={currentIndex === 0}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px',
+            borderRadius: 8, border: '1px solid var(--border)', background: 'var(--card)',
+            color: currentIndex === 0 ? 'var(--subtle)' : 'var(--text)', fontSize: 12,
+            fontWeight: 600, cursor: currentIndex === 0 ? 'not-allowed' : 'pointer',
+            opacity: currentIndex === 0 ? 0.5 : 1, transition: 'all 0.15s',
+          }}
+        >
+          <ChevronLeft size={14} /> Previous
+        </button>
+
+        {!submitted ? (
+          <button
+            onClick={() => setSubmitted(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '7px 18px',
+              borderRadius: 8, border: 'none', background: '#34d399',
+              color: '#000', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 2px 10px rgba(52, 211, 153, 0.3)', transition: 'all 0.15s',
+            }}
+          >
+            <Check size={14} /> Submit Quiz
+          </button>
+        ) : (
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#34d399' }}>
+            Submitted ({score}/{total})
+          </span>
+        )}
+
+        <button
+          onClick={() => setCurrentIndex(prev => Math.min(total - 1, prev + 1))}
+          disabled={currentIndex === total - 1}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px',
+            borderRadius: 8, border: 'none', background: 'var(--accent)',
+            color: '#fff', fontSize: 12, fontWeight: 600,
+            cursor: currentIndex === total - 1 ? 'not-allowed' : 'pointer',
+            opacity: currentIndex === total - 1 ? 0.5 : 1, transition: 'all 0.15s',
+          }}
+        >
+          Next <ChevronRight size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ────────────────── INTERVIEW SCENARIO PARSER & COMPONENT ────────────────── */
+function parseInterview(text) {
+  if (!text) return null
+  try {
+    const jsonMatch = text.match(/```json([\s\S]*?)```/) || text.match(/\[\s*\{[\s\S]*\}\s*\]/)
+    if (jsonMatch) {
+      const raw = jsonMatch[1] || jsonMatch[0]
+      const parsed = JSON.parse(raw.trim())
+      if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].question || parsed[0].q)) {
+        return parsed.map((q, i) => ({
+          id: i + 1,
+          question: q.question || q.q || `Interview Question ${i + 1}`,
+          topic: q.topic || q.category || 'Technical Interview',
+          difficulty: q.difficulty || 'Medium',
+          modelAnswer: q.modelAnswer || q.answer || q.response || 'Model response.',
+          talkingPoints: Array.isArray(q.talkingPoints) ? q.talkingPoints : (Array.isArray(q.keyPoints) ? q.keyPoints : []),
+        }))
+      }
+    }
+  } catch (e) { }
+
+  const questions = []
+  const qRegex = /(?:Q\d+:?|Question\s*\d+:?|\d+\.\s*Question:?)\s*([\s\S]*?)(?:A\d+:?|Answer:?|Model Answer:?)\s*([\s\S]*?)(?=(?:Q\d+:?|Question\s*\d+:?|\d+\.\s*Question:?|$))/gi
+  let match
+  while ((match = qRegex.exec(text)) !== null) {
+    if (match[1] && match[2] && match[1].trim().length > 0) {
+      questions.push({
+        id: questions.length + 1,
+        question: match[1].trim(),
+        topic: 'Technical Interview',
+        difficulty: 'Medium',
+        modelAnswer: match[2].trim(),
+        talkingPoints: [],
+      })
+    }
+  }
+  return questions.length > 0 ? questions : null
+}
+
+function InterviewDeck({ initialQuestions }) {
+  const [questions] = useState(initialQuestions)
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [showAnswer, setShowAnswer] = useState(false)
+  const [userPracticeText, setUserPracticeText] = useState({})
+
+  if (!questions || questions.length === 0) return null
+
+  const currentQ = questions[currentIndex] || questions[0]
+  const total = questions.length
+
+  return (
+    <div style={{ marginTop: 12, marginBottom: 12, maxWidth: 640 }}>
+      {/* Top Banner Header */}
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '8px 20px', borderRadius: 24, background: 'rgba(251, 113, 133, 0.15)',
+          border: '1px solid rgba(251, 113, 133, 0.4)', color: '#fb7185', fontSize: 13, fontWeight: 700,
+        }}>
+          <Mic size={16} />
+          <span>Mock Technical Interview</span>
+        </div>
+      </div>
+
+      {/* Scenario Card */}
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 16, overflow: 'hidden', marginBottom: 14,
+        boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+      }}>
+        {/* Header Tags */}
+        <div style={{
+          background: 'var(--card)', padding: '10px 16px', borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>
+            Question {currentIndex + 1} of {total}
+          </span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(251, 113, 133, 0.12)', border: '1px solid rgba(251, 113, 133, 0.3)', color: '#fb7185' }}>
+              {currentQ.topic}
+            </span>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--muted)' }}>
+              {currentQ.difficulty}
+            </span>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div style={{ padding: 20 }}>
+          <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: '0 0 16px', lineHeight: 1.5 }}>
+            {currentQ.question}
+          </p>
+
+          {/* Candidate Practice Textarea */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+              Practice Answer:
+            </label>
+            <textarea
+              value={userPracticeText[currentQ.id] || ''}
+              onChange={e => setUserPracticeText(prev => ({ ...prev, [currentQ.id]: e.target.value }))}
+              placeholder="Type your talking points or answer here before revealing the expert model answer..."
+              rows={3}
+              style={{
+                width: '100%', background: 'var(--card)', border: '1px solid var(--border)',
+                borderRadius: 10, padding: 10, color: 'var(--text)', fontSize: 13,
+                outline: 'none', resize: 'vertical', fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          {/* Reveal Model Answer Button */}
+          <button
+            onClick={() => setShowAnswer(prev => !prev)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
+              borderRadius: 8, border: '1px solid rgba(251, 113, 133, 0.4)',
+              background: 'rgba(251, 113, 133, 0.12)', color: '#fb7185',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
+            }}
+          >
+            <Sparkles size={14} />
+            {showAnswer ? 'Hide Model Answer' : 'Reveal Model Answer & Key Concepts'}
+          </button>
+
+          {/* Model Answer Details */}
+          {showAnswer && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}
+            >
+              <div style={{
+                padding: '14px 16px', borderRadius: 12, background: 'rgba(96, 165, 250, 0.08)',
+                border: '1px solid rgba(96, 165, 250, 0.3)', color: 'var(--text)', fontSize: 13, lineHeight: 1.6,
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#60a5fa', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  Expert Model Answer:
+                </span>
+                {currentQ.modelAnswer}
+              </div>
+
+              {currentQ.talkingPoints && currentQ.talkingPoints.length > 0 && (
+                <div style={{
+                  padding: '14px 16px', borderRadius: 12, background: 'rgba(52, 211, 153, 0.08)',
+                  border: '1px solid rgba(52, 211, 153, 0.3)',
+                }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#34d399', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Must-Mention Talking Points:
+                  </span>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text)', lineHeight: 1.6 }}>
+                    {currentQ.talkingPoints.map((pt, pIdx) => (
+                      <li key={pIdx} style={{ marginBottom: 4 }}>{pt}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </div>
+      </div>
+
+      {/* Navigation */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '10px 14px', borderRadius: 12, background: 'var(--surface)',
@@ -566,7 +895,7 @@ function QuizDeck({ initialQuestions }) {
             opacity: currentIndex === 0 ? 0.5 : 1, transition: 'all 0.15s',
           }}
         >
-          <ChevronLeft size={14} /> Previous Question
+          <ChevronLeft size={14} /> Previous
         </button>
 
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>
@@ -584,7 +913,7 @@ function QuizDeck({ initialQuestions }) {
             opacity: currentIndex === total - 1 ? 0.5 : 1, transition: 'all 0.15s',
           }}
         >
-          Next Question <ChevronRight size={14} />
+          Next <ChevronRight size={14} />
         </button>
       </div>
     </div>
@@ -606,6 +935,12 @@ function MessageContent({ text, promptType }) {
     if (quiz) return <QuizDeck initialQuestions={quiz} />
   }
 
+  // If message was generated in INTERVIEW mode
+  if (promptType === 'INTERVIEW') {
+    const interview = parseInterview(text)
+    if (interview) return <InterviewDeck initialQuestions={interview} />
+  }
+
   // Fallback checks for un-tagged messages
   if (!promptType || promptType === 'CHAT') {
     const flashcards = parseFlashcards(text)
@@ -613,6 +948,9 @@ function MessageContent({ text, promptType }) {
 
     const quiz = parseQuiz(text)
     if (quiz) return <QuizDeck initialQuestions={quiz} />
+
+    const interview = parseInterview(text)
+    if (interview) return <InterviewDeck initialQuestions={interview} />
   }
 
   const sanitized = text
