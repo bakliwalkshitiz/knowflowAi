@@ -68,14 +68,25 @@ function CodeBlock({ language, children }) {
   )
 }
 
-/* ── Shared markdown component renderers ── */
+/* ── Shared markdown component renderers — react-markdown v10 compatible ── */
 const markdownComponents = {
-  code({ node, inline, className, children, ...props }) {
-    const match = /language-(\w+)/.exec(className || '')
-    if (!inline && match) {
-      return <CodeBlock language={match[1]}>{children}</CodeBlock>
+  // Block code: react-markdown v10 wraps code blocks in <pre><code>
+  // Override `pre` to intercept block code and render with syntax highlighting
+  pre({ children, ...props }) {
+    // children is the <code> element inside <pre>
+    const child = Array.isArray(children) ? children[0] : children
+    if (child && child.type === 'code') {
+      const className = child.props?.className || ''
+      const match = /language-(\w+)/.exec(className)
+      const lang = match ? match[1] : 'text'
+      const code = String(child.props?.children || '').replace(/\n$/, '')
+      return <CodeBlock language={lang}>{code}</CodeBlock>
     }
-    // Inline code — no special handling, CSS handles styling
+    return <pre {...props}>{children}</pre>
+  },
+  // Inline code (no language class)
+  code({ className, children, ...props }) {
+    // If it has a language class it will be handled by `pre` above
     return <code className={className} {...props}>{children}</code>
   },
   a({ href, children, ...props }) {
