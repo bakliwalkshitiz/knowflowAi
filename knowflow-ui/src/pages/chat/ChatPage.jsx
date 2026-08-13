@@ -98,12 +98,73 @@ const markdownComponents = {
   },
 }
 
+function formatMarkdownText(text) {
+  if (!text) return ''
+
+  let formatted = text
+    // Remove duplicate title prefix at start (e.g. "Spring BootSpring Boot is...")
+    .replace(/^([A-Z][A-Za-z0-9\s]{2,25})\1/g, '$1 ')
+    // Remove LaTeX math delimiters if present
+    .replace(/\\\( (.*?) \\\)/g, '$1')
+    .replace(/\\\((.*?)\\\)/g, '$1')
+    .replace(/\\\[ (.*?) \\\]/g, '$1')
+    .replace(/\\\[(.*?)\\\]/g, '$1')
+    .replace(/\\frac\{(.*?)\}\{(.*?)\}/g, '$1/$2')
+    // Ensure headings (## or ###) always start on a new line with double newlines before them
+    .replace(/([^\n])\s*(#{1,6}\s+)/g, '$1\n\n$2')
+    // Ensure headings have double newlines after them if stuck to text (e.g. "### Key Features- Auto") -> "### Key Features\n\n- Auto"
+    .replace(/(#{1,6}\s+[^\n#]+?)([-*]\s+|\n\s*[-*]\s+)/g, '$1\n\n$2')
+    // Ensure bullet points (- or *) after regular sentence text get a proper newline before them
+    .replace(/([^\n])\s*(\n*[-*]\s+)/g, '$1\n$2')
+    // Ensure numbered steps (1. 2. 3.) after text get a proper newline before them
+    .replace(/([^\n])\s*(\n*\d+\.\s+)/g, '$1\n$2')
+    // Ensure bold section titles like "**Key Features:**" have proper double newlines
+    .replace(/([^\n])\s*(\*\*[^*]+:\*\*)/g, '$1\n\n$2')
+
+  return formatted
+}
+
+function mergeSessions(localSessions, dbSessions) {
+  const map = new Map()
+
+  // 1. Preserve local sessions first (newly created chats or active unsaved streams)
+  if (Array.isArray(localSessions)) {
+    localSessions.forEach(s => {
+      if (s && s.id) map.set(String(s.id).trim(), s)
+    })
+  }
+
+  // 2. Merge DB sessions
+  if (Array.isArray(dbSessions)) {
+    dbSessions.forEach(dbS => {
+      if (!dbS || !dbS.id) return
+      const key = String(dbS.id).trim()
+      if (!map.has(key)) {
+        map.set(key, dbS)
+      } else {
+        const localS = map.get(key)
+        const localMsgs = localS.messages || []
+        const dbMsgs = dbS.messages || []
+        map.set(key, {
+          ...dbS,
+          name: (localS.name && localS.name !== 'General Chat') ? localS.name : dbS.name,
+          messages: localMsgs.length >= dbMsgs.length ? localMsgs : dbMsgs,
+          createdAt: dbS.createdAt || localS.createdAt,
+        })
+      }
+    })
+  }
+
+  return Array.from(map.values())
+}
+
 /* ── Memoized Markdown renderer ── */
 const MarkdownContent = memo(function MarkdownContent({ content }) {
+  const formatted = formatMarkdownText(content)
   return (
     <div className="md-prose">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-        {content}
+        {formatted}
       </ReactMarkdown>
     </div>
   )
@@ -870,6 +931,7 @@ function ThinkingIndicator() {
    STREAMING BUBBLE — live response as it arrives
 ────────────────────────────────────────────── */
 function StreamingBubble({ content }) {
+  const formatted = formatMarkdownText(content)
   return (
     <div className="streaming-bubble-enter" style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
       <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--card)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -882,7 +944,7 @@ function StreamingBubble({ content }) {
       }}>
         <div className="md-prose">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {content || ''}
+            {formatted || ''}
           </ReactMarkdown>
         </div>
         <span className="streaming-cursor" aria-hidden="true" />
@@ -1120,15 +1182,14 @@ export default function ChatPage() {
 
       const fetchedSessions = Array.from(sessionMap.values())
       if (fetchedSessions.length > 0) {
-        setSessions(fetchedSessions)
-        saveSessions(SESSIONS_STORAGE_KEY, fetchedSessions)
-        const targetId = sessionUrlParam || activeId
-        const match = fetchedSessions.find(s => s.id === targetId || s.id?.trim() === (targetId || '').trim())
-        if (match) setActiveId(match.id)
-        else if (fetchedSessions[0]?.id) setActiveId(fetchedSessions[0].id)
+        setSessions(prev => {
+          const merged = mergeSessions(prev, fetchedSessions)
+          saveSessions(SESSIONS_STORAGE_KEY, merged)
+          return merged
+        })
       }
     }).catch(() => {})
-  }, [user, SESSIONS_STORAGE_KEY, sessionUrlParam])
+  }, [user, SESSIONS_STORAGE_KEY])
 
   useEffect(() => {
     if (sessionUrlParam) setActiveId(sessionUrlParam)

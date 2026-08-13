@@ -44,6 +44,40 @@ function loadSessions(storageKey) {
   return [createDefaultSession()]
 }
 
+function mergeSessions(localSessions, dbSessions) {
+  const map = new Map()
+
+  // 1. Preserve local sessions first (newly created chats or active unsaved streams)
+  if (Array.isArray(localSessions)) {
+    localSessions.forEach(s => {
+      if (s && s.id) map.set(String(s.id).trim(), s)
+    })
+  }
+
+  // 2. Merge DB sessions
+  if (Array.isArray(dbSessions)) {
+    dbSessions.forEach(dbS => {
+      if (!dbS || !dbS.id) return
+      const key = String(dbS.id).trim()
+      if (!map.has(key)) {
+        map.set(key, dbS)
+      } else {
+        const localS = map.get(key)
+        const localMsgs = localS.messages || []
+        const dbMsgs = dbS.messages || []
+        map.set(key, {
+          ...dbS,
+          name: (localS.name && localS.name !== 'General Chat') ? localS.name : dbS.name,
+          messages: localMsgs.length >= dbMsgs.length ? localMsgs : dbMsgs,
+          createdAt: dbS.createdAt || localS.createdAt,
+        })
+      }
+    })
+  }
+
+  return Array.from(map.values())
+}
+
 function saveSessions(storageKey, sessions) {
   try {
     localStorage.setItem(storageKey, JSON.stringify(sessions))
@@ -107,8 +141,11 @@ export default function Sidebar() {
         })
         const fetched = Array.from(sessionMap.values())
         if (fetched.length > 0) {
-          setSessions(fetched)
-          saveSessions(STORAGE_KEY, fetched)
+          setSessions(prev => {
+            const merged = mergeSessions(prev, fetched)
+            saveSessions(STORAGE_KEY, merged)
+            return merged
+          })
         }
       }
     }).catch(() => {})
