@@ -35,7 +35,7 @@ export const documentApi = {
   upload: (formData) => api.post('/documents/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
-  list: (page = 0, size = 12) => api.get(`/documents/page?page=${page}&size=${size}`),
+  list: (page = 0, size = 12) => api.get(`/documents?page=${page}&size=${size}`),
   getAll: () => api.get('/documents'),
   delete: (id) => api.delete(`/documents/${id}`),
   rename: (id, data) => api.patch(`/documents/${id}/rename`, data),

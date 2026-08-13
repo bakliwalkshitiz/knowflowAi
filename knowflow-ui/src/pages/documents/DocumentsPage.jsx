@@ -197,29 +197,29 @@ export default function DocumentsPage() {
   const fetchDocs = async () => {
     setLoading(true)
     try {
+      let res
       if (search.trim()) {
-        const res = await documentApi.search(search)
-        const list = Array.isArray(res.data) ? res.data : (res.data?.content || [])
-        setDocs(list)
-        setTotalPages(1)
+        res = await documentApi.search(search)
       } else {
-        const res = await documentApi.list(page, 12)
-        const data = res.data
-        if (data?.content && Array.isArray(data.content)) {
-          setDocs(data.content)
-          setTotalPages(data.totalPages || 1)
-        } else if (Array.isArray(data)) {
-          setDocs(data)
-          setTotalPages(1)
-        } else {
-          const fallbackRes = await documentApi.getAll()
-          if (Array.isArray(fallbackRes.data)) setDocs(fallbackRes.data)
-        }
+        res = await documentApi.list(page, 12)
+      }
+      const data = res?.data
+      if (Array.isArray(data)) {
+        setDocs(data)
+        setTotalPages(1)
+      } else if (data?.content && Array.isArray(data.content)) {
+        setDocs(data.content)
+        setTotalPages(data.totalPages || 1)
+      } else {
+        const fallback = await documentApi.getAll().catch(() => null)
+        if (Array.isArray(fallback?.data)) setDocs(fallback.data)
+        else setDocs([])
       }
     } catch {
       try {
-        const fallbackRes = await documentApi.getAll()
-        if (Array.isArray(fallbackRes.data)) setDocs(fallbackRes.data)
+        const fallback = await documentApi.getAll()
+        if (Array.isArray(fallback?.data)) setDocs(fallback.data)
+        else setDocs([])
       } catch {
         setDocs([])
       }
@@ -234,10 +234,26 @@ export default function DocumentsPage() {
     try {
       const fd = new FormData()
       fd.append('file', file)
-      await documentApi.upload(fd)
+      const res = await documentApi.upload(fd)
       setSuccess(`"${file.name}" uploaded and embedded successfully!`)
       setTimeout(() => setSuccess(''), 5000)
-      fetchDocs()
+
+      if (res?.data) {
+        const uploadedId = res.data.id || res.data.documentId
+        const newDoc = {
+          id: uploadedId || `doc-${Date.now()}`,
+          fileName: res.data.fileName || file.name,
+          fileSize: res.data.fileSize || file.size,
+          chunkCount: res.data.chunkCount || 1,
+          uploadedAt: new Date().toISOString(),
+        }
+        setDocs(prev => {
+          const exists = prev.some(d => d.id === newDoc.id || d.fileName === newDoc.fileName)
+          return exists ? prev : [newDoc, ...prev]
+        })
+      }
+
+      await fetchDocs()
     } catch (err) {
       const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Upload failed. Please try again.'
       setError(msg)
