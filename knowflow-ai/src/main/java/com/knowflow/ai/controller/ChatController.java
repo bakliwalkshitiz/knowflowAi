@@ -42,6 +42,16 @@ public class ChatController {
         return chatService.stream(conversationId, message);
     }
 
+    @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> streamChat(@Valid @RequestBody ChatRequest request) {
+        return chatService.streamChat(
+                request.getType(),
+                request.getConversationId(),
+                request.getMessage(),
+                request.getDocumentIds()
+        );
+    }
+
     @PostMapping("/explain")
     public ExplainResponse explain(
             @RequestParam String conversationId,

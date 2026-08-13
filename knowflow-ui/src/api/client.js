@@ -48,6 +48,29 @@ export const chatApi = {
   send: (data) => api.post('/chat', data),
   history: () => api.get('/chat/history'),
   conversationHistory: (id) => api.get(`/chat/history/${id}`),
+
+  /**
+   * Streams a chat response from the server via SSE.
+   * @param {object} data - { type, conversationId, message, documentIds }
+   * @returns {{ controller: AbortController, stream: ReadableStreamDefaultReader }}
+   */
+  streamChat: (data) => {
+    const controller = new AbortController()
+    const token = localStorage.getItem('kf_token')
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
+    const fetchPromise = fetch(`${baseUrl}/chat/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(data),
+      signal: controller.signal,
+    })
+
+    return { controller, fetchPromise }
+  },
 }
 
 export const userApi = {

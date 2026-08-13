@@ -24,6 +24,7 @@ import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -218,6 +219,144 @@ public class ChatService {
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .stream()
                 .content();
+    }
+
+    /**
+     * Full-featured streaming chat: builds RAG/document context, applies system prompt and
+     * memory advisor (same as chat()), streams tokens, then persists the assembled response.
+     */
+    public Flux<String> streamChat(PromptType type,
+                                   String conversationId,
+                                   String message,
+                                   List<String> documentIds) {
+
+        User currentUser = securityUtils.getCurrentUser();
+        String userIdStr = currentUser.getId().toString();
+
+        log.info("Streaming chat request from user={} type={} conversationId={} documentIds={}",
+                currentUser.getEmail(), type, conversationId, documentIds);
+
+        String basePrompt = promptTemplateFactory.buildPrompt(type, message);
+        String finalPrompt = basePrompt;
+
+        // Perform vector similarity search when documents are explicitly attached
+        if (documentIds != null && !documentIds.isEmpty()) {
+            try {
+                var b = new FilterExpressionBuilder();
+                Filter.Expression filterExpression;
+
+                if (documentIds.size() == 1) {
+                    filterExpression = b.eq("documentId", documentIds.get(0)).build();
+                } else {
+                    filterExpression = b.in("documentId", documentIds.toArray()).build();
+                }
+
+                SearchRequest searchRequest = SearchRequest.builder()
+                        .query((message != null && !message.isBlank()) ? message : "overview summary key points notes")
+                        .topK(10)
+                        .filterExpression(filterExpression)
+                        .build();
+
+                List<org.springframework.ai.document.Document> matchingDocs = vectorStore.similaritySearch(searchRequest);
+
+                if (matchingDocs == null || matchingDocs.isEmpty()) {
+                    log.info("PGVector returned 0 chunks for documentIds {}. Triggering auto-reindex...", documentIds);
+                    for (String docIdStr : documentIds) {
+                        try {
+                            documentService.reindexDocument(UUID.fromString(docIdStr));
+                        } catch (Exception ex) {
+                            log.warn("Auto-reindex error for {}: {}", docIdStr, ex.getMessage());
+                        }
+                    }
+                    matchingDocs = vectorStore.similaritySearch(searchRequest);
+                }
+
+                String context = "";
+                if (matchingDocs != null && !matchingDocs.isEmpty()) {
+                    context = matchingDocs.stream()
+                            .map(org.springframework.ai.document.Document::getText)
+                            .filter(t -> t != null && !t.isBlank())
+                            .collect(Collectors.joining("\n---\n"));
+                }
+
+                if (context == null || context.isBlank()) {
+                    StringBuilder fallbackSb = new StringBuilder();
+                    for (String docIdStr : documentIds) {
+                        try {
+                            String docText = documentService.getDocumentText(UUID.fromString(docIdStr));
+                            if (docText != null && !docText.isBlank()) {
+                                fallbackSb.append(docText).append("\n---\n");
+                            }
+                        } catch (Exception ex) {
+                            log.warn("Direct document text extraction warning for docId {}: {}", docIdStr, ex.getMessage());
+                        }
+                    }
+                    context = fallbackSb.toString();
+                }
+
+                if (context != null && !context.isBlank()) {
+                    finalPrompt = basePrompt + "\n\n--- STRICT DOCUMENT CONTEXT FROM ATTACHED FILES ---\n" + context + "\n--- END CONTEXT ---";
+                }
+            } catch (Exception e) {
+                log.warn("Vector similarity search warning during stream for query '{}': {}", message, e.getMessage());
+            }
+        }
+
+        String rawScope = userIdStr + ":" + (conversationId != null ? conversationId : "default");
+        String scopedConversationId = UUID.nameUUIDFromBytes(rawScope.getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+        final String promptFinal = finalPrompt;
+
+        // Accumulate streamed tokens so we can persist the full response on completion
+        AtomicReference<String> assembled = new AtomicReference<>("");
+
+        return chatClient
+                .prompt()
+                .system("""
+                        You are KnowFlow AI, an intelligent AI knowledge vault assistant for students, developers, and engineers.
+
+                        RESPONSE FORMATTING RULES:
+                        1. RESPOND IN WELL-STRUCTURED MARKDOWN:
+                           - Use bold headers (##, ###) for key sections.
+                           - Use clean bullet points or numbered lists.
+                           - Do NOT output LaTeX math delimiters like \\( \\) or \\[ \\]. Write math equations using clean standard characters (e.g. 22 / 33 = 0.6667 or 2/3).
+                           - Use code blocks ``` for any code or structured data.
+
+                        2. SPECIALIZED AI TOOLS INTEGRATION:
+                           - You have 7 active AI tools registered: CalculatorTool, DateTimeTool, UUIDTool, CodeFormatterTool, TextAnalyzerTool, UnitConverterTool, WeatherMockTool.
+                           - Whenever a user asks for calculations, date/time, UUID generation, code metrics, text analysis, unit conversions, or weather, ALWAYS invoke the matching tool function.
+
+                        3. DOCUMENT SCOPE:
+                           - If 'STRICT DOCUMENT CONTEXT FROM ATTACHED FILES' is provided, base document answers strictly on that content.
+
+                        4. NO HEADER PREFIXES OR INTRODUCTORY META TAGS:
+                           - Start your response directly with the requested information.
+                           - Do NOT include any introductory meta tags, prefixes, or disclaimers.
+                        """)
+                .user(promptFinal)
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, scopedConversationId))
+                .stream()
+                .content()
+                .doOnNext(token -> assembled.updateAndGet(prev -> prev + (token != null ? token : "")))
+                .doOnComplete(() -> {
+                    try {
+                        String fullResponse = assembled.get();
+                        chatHistoryRepository.save(
+                                ChatHistory.builder()
+                                        .user(currentUser)
+                                        .conversationId(conversationId)
+                                        .prompt(message)
+                                        .response(fullResponse)
+                                        .promptType(type != null ? type : PromptType.CHAT)
+                                        .build()
+                        );
+                        log.info("Stream chat persisted for user={} conversationId={} length={}",
+                                currentUser.getEmail(), conversationId, fullResponse.length());
+                    } catch (Exception ex) {
+                        log.error("Failed to persist streamed response for conversationId={}: {}", conversationId, ex.getMessage());
+                    }
+                })
+                .doOnError(err -> log.error("Stream error for user={} conversationId={}: {}",
+                        currentUser.getEmail(), conversationId, err.getMessage()));
     }
 
     public ExplainResponse explain(String conversationId, String topic) {
