@@ -38,6 +38,7 @@ public class Document {
     @Column(nullable = false)
     private String filePath;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;

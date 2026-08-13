@@ -5,6 +5,10 @@ spring:
   application:
     name: KnowFlowAI
 
+  jackson:
+    serialization:
+      FAIL_ON_EMPTY_BEANS: false
+
   jpa:
     open-in-view: false
     hibernate:
