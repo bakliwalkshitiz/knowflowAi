@@ -199,14 +199,31 @@ export default function DocumentsPage() {
     try {
       if (search.trim()) {
         const res = await documentApi.search(search)
-        setDocs(res.data || []); setTotalPages(1)
+        const list = Array.isArray(res.data) ? res.data : (res.data?.content || [])
+        setDocs(list)
+        setTotalPages(1)
       } else {
         const res = await documentApi.list(page, 12)
         const data = res.data
-        if (data?.content) { setDocs(data.content); setTotalPages(data.totalPages) }
-        else setDocs(data || [])
+        if (data?.content && Array.isArray(data.content)) {
+          setDocs(data.content)
+          setTotalPages(data.totalPages || 1)
+        } else if (Array.isArray(data)) {
+          setDocs(data)
+          setTotalPages(1)
+        } else {
+          const fallbackRes = await documentApi.getAll()
+          if (Array.isArray(fallbackRes.data)) setDocs(fallbackRes.data)
+        }
       }
-    } catch { setDocs([]) }
+    } catch {
+      try {
+        const fallbackRes = await documentApi.getAll()
+        if (Array.isArray(fallbackRes.data)) setDocs(fallbackRes.data)
+      } catch {
+        setDocs([])
+      }
+    }
     setLoading(false)
   }
 
