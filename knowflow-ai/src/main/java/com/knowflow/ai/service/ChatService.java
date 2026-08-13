@@ -202,7 +202,21 @@ public class ChatService {
                             4. DOCUMENT SCOPE:
                                - If 'STRICT DOCUMENT CONTEXT FROM ATTACHED FILES' is provided, base answers strictly on that content.
 
-                            5. START DIRECTLY:
+                            5. MERMAID DIAGRAM FORMATTING RULES:
+                               - When generating Mermaid blocks (```mermaid ... ```), EVERY node MUST be on a NEW LINE with 2-space indentation.
+                               - Example mindmap:
+                                 ```mermaid
+                                 mindmap
+                                   root((Main Topic))
+                                     Phase 1
+                                       Concept A
+                                       Concept B
+                                     Phase 2
+                                       Concept C
+                                 ```
+                               - NEVER output Mermaid syntax on a single continuous line.
+
+                            6. START DIRECTLY:
                                - Begin your response with the content. No meta-tags, no disclaimers, no prefixes.
                             """)
                     .user(finalPrompt)
@@ -372,7 +386,21 @@ public class ChatService {
                         4. DOCUMENT SCOPE:
                            - If 'STRICT DOCUMENT CONTEXT FROM ATTACHED FILES' is provided, base answers strictly on that content.
 
-                        5. START DIRECTLY:
+                        5. MERMAID DIAGRAM FORMATTING RULES:
+                           - When generating Mermaid blocks (```mermaid ... ```), EVERY node MUST be on a NEW LINE with 2-space indentation.
+                           - Example mindmap:
+                             ```mermaid
+                             mindmap
+                               root((Main Topic))
+                                 Phase 1
+                                   Concept A
+                                   Concept B
+                                 Phase 2
+                                   Concept C
+                             ```
+                           - NEVER output Mermaid syntax on a single continuous line.
+
+                        6. START DIRECTLY:
                            - Begin your response with the content. No meta-tags, no disclaimers, no prefixes.
                         """)
 

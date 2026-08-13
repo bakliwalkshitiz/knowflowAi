@@ -244,7 +244,18 @@ function MermaidDiagram({ chart }) {
   useEffect(() => {
     let isMounted = true
     const id = `mermaid-${Math.random().toString(36).slice(2, 9)}`
-    mermaid.render(id, chart)
+
+    // Auto-fix single-line mindmap or graph charts where newlines were stripped
+    let sanitizedChart = (chart || '').trim()
+    if (sanitizedChart.startsWith('mindmap')) {
+      sanitizedChart = sanitizedChart
+        .replace(/mindmap\s+/i, 'mindmap\n  ')
+        .replace(/(root\(\([^\)]+\)\))\s*/gi, '$1\n    ')
+        .replace(/\s+(Phase\s+\d+|Foundation|Basics|Concept|Architecture|Implementation|Testing|Deployment|Security|Optimization)/gi, '\n    $1')
+        .replace(/\s+([A-Z][a-zA-Z0-9\s]{3,30})(?=\s+(?:Phase|[A-Z]|$))/g, '\n      $1')
+    }
+
+    mermaid.render(id, sanitizedChart)
       .then(res => {
         if (isMounted) { setSvg(res.svg); setError(null) }
       })
