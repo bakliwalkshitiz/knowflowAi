@@ -216,7 +216,19 @@ public class ChatService {
                                  ```
                                - NEVER output Mermaid syntax on a single continuous line.
 
-                            6. START DIRECTLY:
+                            6. CODE BLOCK FORMATTING RULES — VERY IMPORTANT:
+                               - When outputting code (C++, Java, Python, SQL, JS, etc.), ALWAYS wrap code in triple backticks on their OWN lines with a language tag:
+                                 ```cpp
+                                 #include <iostream>
+                                 using namespace std;
+                                 int main() {
+                                     return 0;
+                                 }
+                                 ```
+                               - ALWAYS put a BLANK LINE before ```cpp and a BLANK LINE after ```.
+                               - NEVER output code on a single continuous line without newlines.
+
+                            7. START DIRECTLY:
                                - Begin your response with the content. No meta-tags, no disclaimers, no prefixes.
                             """)
                     .user(finalPrompt)
@@ -400,7 +412,19 @@ public class ChatService {
                              ```
                            - NEVER output Mermaid syntax on a single continuous line.
 
-                        6. START DIRECTLY:
+                        6. CODE BLOCK FORMATTING RULES — VERY IMPORTANT:
+                           - When outputting code (C++, Java, Python, SQL, JS, etc.), ALWAYS wrap code in triple backticks on their OWN lines with a language tag:
+                             ```cpp
+                             #include <iostream>
+                             using namespace std;
+                             int main() {
+                                 return 0;
+                             }
+                             ```
+                           - ALWAYS put a BLANK LINE before ```cpp and a BLANK LINE after ```.
+                           - NEVER output code on a single continuous line without newlines.
+
+                        7. START DIRECTLY:
                            - Begin your response with the content. No meta-tags, no disclaimers, no prefixes.
                         """)
 

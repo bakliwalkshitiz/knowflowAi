@@ -70,23 +70,25 @@ function CodeBlock({ language, children }) {
 
 /* ── Shared markdown component renderers — react-markdown v10 compatible ── */
 const markdownComponents = {
-  // Block code: react-markdown v10 wraps code blocks in <pre><code>
-  // Override `pre` to intercept block code and render with syntax highlighting
+  // Block code container override
   pre({ children, ...props }) {
-    // children is the <code> element inside <pre>
     const child = Array.isArray(children) ? children[0] : children
-    if (child && child.type === 'code') {
-      const className = child.props?.className || ''
+    if (child && child.props) {
+      const className = child.props.className || ''
       const match = /language-(\w+)/.exec(className)
       const lang = match ? match[1] : 'text'
-      const code = String(child.props?.children || '').replace(/\n$/, '')
+      const code = String(child.props.children || '').replace(/\n$/, '')
       return <CodeBlock language={lang}>{code}</CodeBlock>
     }
     return <pre {...props}>{children}</pre>
   },
-  // Inline code (no language class)
+  // Inline & block code
   code({ className, children, ...props }) {
-    // If it has a language class it will be handled by `pre` above
+    const match = /language-(\w+)/.exec(className || '')
+    if (match) {
+      const code = String(children).replace(/\n$/, '')
+      return <CodeBlock language={match[1]}>{code}</CodeBlock>
+    }
     return <code className={className} {...props}>{children}</code>
   },
   a({ href, children, ...props }) {
@@ -110,9 +112,19 @@ function formatMarkdownText(text) {
     .replace(/\\\[ (.*?) \\\]/g, '$1')
     .replace(/\\\[(.*?)\\\]/g, '$1')
     .replace(/\\frac\{(.*?)\}\{(.*?)\}/g, '$1/$2')
+
+    // ── CODE BLOCK BACKTICK SANITIZER ─────────────
+    // Fix code blocks opening backticks glued to text (e.g. "environment.```cpp#include") -> "environment.\n\n```cpp\n#include"
+    .replace(/([^\n])\s*(```[a-zA-Z0-9_+-]*)/g, '$1\n\n$2')
+    .replace(/(```[a-zA-Z0-9_+-]+)([^\n\s])/g, '$1\n$2')
+    // Fix code blocks closing backticks glued to text (e.g. "return 0;}```Feel free") -> "return 0;}\n```\n\nFeel free"
+    .replace(/([^\n])\s*(```)(?!\w)/g, '$1\n$2')
+    .replace(/(```)\s*([^\n\s])/g, '$1\n\n$2')
+
+    // ── HEADERS & LISTS FORMATTER ─────────────────
     // Ensure headings (## or ###) always start on a new line with double newlines before them
     .replace(/([^\n])\s*(#{1,6}\s+)/g, '$1\n\n$2')
-    // Ensure headings have double newlines after them if stuck to text (e.g. "### Key Features- Auto") -> "### Key Features\n\n- Auto"
+    // Ensure headings have double newlines after them if stuck to text
     .replace(/(#{1,6}\s+[^\n#]+?)([-*]\s+|\n\s*[-*]\s+)/g, '$1\n\n$2')
     // Ensure bullet points (- or *) after regular sentence text get a proper newline before them
     .replace(/([^\n])\s*(\n*[-*]\s+)/g, '$1\n$2')
