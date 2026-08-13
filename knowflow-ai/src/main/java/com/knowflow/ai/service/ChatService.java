@@ -330,6 +330,9 @@ public class ChatService {
         // Accumulate streamed tokens so we can persist the full response on completion
         AtomicReference<String> assembled = new AtomicReference<>("");
 
+        final UUID currentUserId = currentUser.getId();
+        final String currentUserEmail = currentUser.getEmail();
+
         return chatClient
                 .prompt()
                 .system("""
@@ -381,9 +384,10 @@ public class ChatService {
                 .doOnComplete(() -> {
                     try {
                         String fullResponse = assembled.get();
+                        User userRef = User.builder().id(currentUserId).build();
                         chatHistoryRepository.save(
                                 ChatHistory.builder()
-                                        .user(currentUser)
+                                        .user(userRef)
                                         .conversationId(conversationId)
                                         .prompt(message)
                                         .response(fullResponse)
@@ -391,13 +395,13 @@ public class ChatService {
                                         .build()
                         );
                         log.info("Stream chat persisted for user={} conversationId={} length={}",
-                                currentUser.getEmail(), conversationId, fullResponse.length());
+                                currentUserEmail, conversationId, fullResponse.length());
                     } catch (Exception ex) {
                         log.error("Failed to persist streamed response for conversationId={}: {}", conversationId, ex.getMessage());
                     }
                 })
                 .doOnError(err -> log.error("Stream error for user={} conversationId={}: {}",
-                        currentUser.getEmail(), conversationId, err.getMessage()));
+                        currentUserEmail, conversationId, err.getMessage()));
     }
 
     public ExplainResponse explain(String conversationId, String topic) {
