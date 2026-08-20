@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 public class KnowflowAiApplication {
 
 	public static void main(String[] args) {
+		// Trigger Render production redeployment
 		SpringApplication.run(KnowflowAiApplication.class, args);
 	}
 
