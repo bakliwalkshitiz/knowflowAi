@@ -25,12 +25,58 @@ mermaid.initialize({
 })
 
 /* ──────────────────────────────────────────────
-   CODE BLOCK — syntax highlighting + copy button
+   CODE BLOCK SANITIZER & HIGHLIGHTER
 ────────────────────────────────────────────── */
+function formatCodeContent(rawCode, rawLang) {
+  if (!rawCode) return { code: '', lang: 'text', displayLang: 'TEXT' }
+
+  let code = String(rawCode).replace(/\r\n/g, '\n').replace(/\n$/, '').trim()
+  let lang = (rawLang || 'text').toLowerCase()
+
+  // 1. If first line of code is the language name (e.g. "cpp\n#include..."), strip it
+  const firstLineMatch = /^([a-zA-Z0-9_+-]+)\n/.exec(code)
+  if (firstLineMatch) {
+    const tag = firstLineMatch[1].toLowerCase()
+    const validLangs = ['cpp', 'c++', 'c', 'java', 'python', 'py', 'javascript', 'js', 'ts', 'typescript', 'sql', 'html', 'css', 'json', 'bash', 'sh', 'xml', 'go', 'rust']
+    if (validLangs.includes(tag)) {
+      lang = tag
+      code = code.substring(firstLineMatch[0].length).trim()
+    }
+  }
+
+  // 2. If code statements were concatenated on single/few lines, insert newlines at statement boundaries
+  const lineCount = code.split('\n').length
+  if (lineCount <= 6 && (code.includes(';') || code.includes('{') || code.includes('#include'))) {
+    code = code
+      // Separate includes / imports
+      .replace(/(#include\s*<[^>]+>)/gi, '$1\n')
+      .replace(/(#include\s*"[^"]+")/gi, '$1\n')
+      .replace(/(using\s+namespace\s+\w+;)/gi, '$1\n')
+      .replace(/(import\s+[^;]+;)/gi, '$1\n')
+      .replace(/(package\s+[^;]+;)/gi, '$1\n')
+      // Separate comments stuck to code (e.g. "// commentint main()")
+      .replace(/(\/\/[^\n]*?)(using|int|void|bool|double|float|char|class|struct|if|else|for|while|return|cout|cin|std::)/g, '$1\n$2')
+      // Separate statements glued at semicolons or braces
+      .replace(/;\s*(?=[a-zA-Z_{}\/])/g, ';\n')
+      .replace(/\{\s*(?=[a-zA-Z_{}\/])/g, '{\n')
+      .replace(/\}\s*(?=[a-zA-Z_{}\/])/g, '}\n')
+      .replace(/\n{3,}/g, '\n\n')
+  }
+
+  // Clean language display name
+  const langMap = {
+    cpp: 'C++', 'c++': 'C++', c: 'C', java: 'Java', python: 'Python', py: 'Python',
+    js: 'JavaScript', javascript: 'JavaScript', ts: 'TypeScript', typescript: 'TypeScript',
+    sql: 'SQL', html: 'HTML', css: 'CSS', json: 'JSON', sh: 'Bash', bash: 'Bash', go: 'Go', rust: 'Rust'
+  }
+  const displayLang = langMap[lang] || lang.toUpperCase()
+
+  return { code, lang: lang === 'c++' ? 'cpp' : lang, displayLang }
+}
+
 function CodeBlock({ language, children }) {
   const [copied, setCopied] = useState(false)
-  const code = String(children).replace(/\n$/, '')
-  const lang = language || 'text'
+  const { code, lang, displayLang } = formatCodeContent(children, language)
 
   const handleCopy = () => {
     navigator.clipboard.writeText(code).then(() => {
@@ -42,7 +88,7 @@ function CodeBlock({ language, children }) {
   return (
     <div className="code-block-wrapper">
       <div className="code-block-header">
-        <span className="code-block-lang">{lang}</span>
+        <span className="code-block-lang">{displayLang}</span>
         <button
           className={`code-copy-btn${copied ? ' copied' : ''}`}
           onClick={handleCopy}
@@ -58,7 +104,7 @@ function CodeBlock({ language, children }) {
         language={lang}
         style={oneDark}
         customStyle={{ margin: 0, borderRadius: 0, fontSize: 12, lineHeight: 1.6 }}
-        showLineNumbers={code.split('\n').length > 5}
+        showLineNumbers={code.split('\n').length > 3}
         wrapLongLines={false}
         PreTag="div"
       >
